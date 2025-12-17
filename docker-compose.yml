@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  app:
+    image: ghcr.io/tomko/365daysdarts:main
+    container_name: 365daysdarts
+    restart: unless-stopped
+    environment:
+      - MONGODB_URI=mongodb://admin:admin@sironicsrv:27017/
+    ports:
+      - "3000:3000"
+    networks:
+      - mongo_default
+      - ix-nginx-proxy-manager_default
+
+networks:
+  mongo_default:
+    external: true
+  ix-nginx-proxy-manager_default:
+    external: true
