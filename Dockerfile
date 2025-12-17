@@ -27,6 +27,9 @@ FROM base AS runner
 WORKDIR /app
 
 ENV MONGODB_URI=mongodb://admin:admin@sironicsrv:27017/
+ENV STRIPE_SECRET_KEY=sk_test_...
+ENV STRIPE_WEBHOOK_SECRET=whsec_...
+ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
