@@ -19,6 +19,10 @@ COPY . .
 # Environment variable required for build as per user request
 ENV MONGODB_URI=mongodb://admin:admin@sironicsrv:27017/
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV STRIPE_SECRET_KEY=sk_test_...
+ENV STRIPE_WEBHOOK_SECRET=whsec_...
+ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+ENV NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 RUN npm run build
 
