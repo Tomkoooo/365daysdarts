@@ -2,7 +2,7 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, Database } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, FileQuestion, GraduationCap } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface Page {
@@ -81,7 +81,7 @@ export function CourseSidebar({ courseTitle, modules, currentLectureId, onLectur
                           currentLectureId === `exam-${module._id}` && "bg-red-100"
                         )}
                      >
-                        <Database className="w-4 h-4 shrink-0" />
+                        <FileQuestion className="w-4 h-4 shrink-0" />
                         <span className="text-sm truncate leading-none">Module Exam</span>
                      </button>
                   )}
@@ -101,7 +101,7 @@ export function CourseSidebar({ courseTitle, modules, currentLectureId, onLectur
                        currentLectureId === 'exam-final-exam' && "ring-2 ring-primary ring-offset-2"
                    )}
                >
-                   <Database className="w-5 h-5" />
+                   <GraduationCap className="w-5 h-5" />
                    Take Final Exam
                </button>
            </div>

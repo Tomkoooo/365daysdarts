@@ -12,7 +12,7 @@ const ExamResultSchema = new Schema({
   }],
   type: {
     type: String,
-    enum: ['practice', 'final'],
+    enum: ['practice', 'final', 'module'],
     required: true,
   },
   startedAt: { type: Date, default: Date.now },

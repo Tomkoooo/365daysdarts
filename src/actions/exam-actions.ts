@@ -57,8 +57,20 @@ export async function startModuleExam(moduleId: string) {
     // Check for existing active attempt? (Simplification: just create new for now, or return existing)
     // For module exams, we allow infinite retries, so just create new.
 
+    const userId = session?.user?.id || (isDev ? new mongoose.Types.ObjectId() : null);
+    
+    // Fetch random questions from this module
+    const questions = await Question.aggregate([
+        { $match: { moduleId: new mongoose.Types.ObjectId(moduleId) } },
+        { $sample: { size: settings.questionCount } }
+    ]);
+
+    if (questions.length === 0) {
+        return { error: "No questions found in this module. Please ask the lecturer to add questions." };
+    }
+
     const newExam = await ExamResult.create({
-        userId: session?.user?.id, // @ts-ignore
+        userId: userId,
         courseId: module.courseId,
         moduleId: moduleId,
         type: "module",
@@ -67,12 +79,6 @@ export async function startModuleExam(moduleId: string) {
         answers: [],
         startedAt: new Date()
     });
-
-    // Fetch random questions from this module
-    const questions = await Question.aggregate([
-        { $match: { moduleId: new mongoose.Types.ObjectId(moduleId) } },
-        { $sample: { size: settings.questionCount } }
-    ]);
 
     const formattedQuestions = questions.map((q: any) => ({
         id: q._id.toString(),

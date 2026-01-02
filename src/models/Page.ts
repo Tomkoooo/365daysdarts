@@ -11,6 +11,9 @@ const PageSchema = new Schema({
   mediaUrl: { type: String }, // Optional for video/image/pdf
   chapterId: { type: Schema.Types.ObjectId, ref: 'Chapter', required: true },
   order: { type: Number, default: 0 },
+  // PDF specific metadata
+  pdfPageIndex: { type: Number, default: 0 },
+  pdfTotalPages: { type: Number },
 }, { timestamps: true });
 
 const Page = models.Page || model('Page', PageSchema);

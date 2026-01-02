@@ -94,10 +94,45 @@ export async function createPage(chapterId: string, title: string, content: stri
     return JSON.parse(JSON.stringify(newPage));
 }
 
+export async function createPageBatch(chapterId: string, pages: { title: string, type: string, content?: string, mediaUrl?: string, pdfPageIndex?: number, pdfTotalPages?: number }[]) {
+    await connectDB();
+    
+    // Get current page count to determine order
+    const chapter = await Chapter.findById(chapterId);
+    if (!chapter) throw new Error("Chapter not found");
+    
+    const existingPagesCount = chapter.pages.length;
+
+    const newPages = await Page.insertMany(pages.map((p, idx) => ({
+        ...p,
+        chapterId,
+        order: existingPagesCount + idx
+    })));
+    
+    const newPageIds = newPages.map(p => p._id);
+    await Chapter.findByIdAndUpdate(chapterId, { $push: { pages: { $each: newPageIds } } });
+    
+    return JSON.parse(JSON.stringify(newPages));
+}
+
 export async function updatePage(pageId: string, data: { title?: string, content?: string, type?: string, mediaUrl?: string }) {
     await connectDB();
     const updatedPage = await Page.findByIdAndUpdate(pageId, data, { new: true });
     return JSON.parse(JSON.stringify(updatedPage));
+}
+
+export async function deletePage(pageId: string) {
+    await connectDB();
+    const page = await Page.findById(pageId);
+    if (!page) throw new Error("Page not found");
+
+    // Remove from chapter
+    await Chapter.findByIdAndUpdate(page.chapterId, { $pull: { pages: pageId } });
+    
+    // Delete page
+    await Page.findByIdAndDelete(pageId);
+    
+    return { success: true };
 }
 
 export async function updateModuleSettings(moduleId: string, settings: { quizSettings: any }) {
@@ -110,4 +145,120 @@ export async function updateCourseSettings(courseId: string, settings: { finalEx
     await connectDB();
     const updatedCourse = await Course.findByIdAndUpdate(courseId, { finalExamSettings: settings.finalExamSettings }, { new: true });
     return JSON.parse(JSON.stringify(updatedCourse));
+}
+
+// --- Student Progress Actions ---
+
+export async function getStudentCourses() {
+    const session = await getServerSession(authOptions);
+    const isDev = process.env.DEV_MODE === "true";
+
+    if (!session && !isDev) {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+
+    // Import User model
+    const User = (await import("@/models/User")).default;
+    const userId = session?.user?.id;
+    
+    if (!userId) return [];
+
+    const user = await User.findById(userId).lean();
+    if (!user) return [];
+
+    // Get all courses where user has progress
+    const progressMap = user.progress || new Map();
+    const courseIds = Array.from(progressMap.keys());
+
+    if (courseIds.length === 0) return [];
+
+    const courses = await Course.find({ _id: { $in: courseIds } })
+        .select("title description thumbnail")
+        .lean();
+
+    // Enrich with progress data
+    const enrichedCourses = courses.map((course: any) => {
+        const progress = progressMap.get(course._id.toString()) || {};
+        return {
+            ...course,
+            progress: {
+                completedModules: progress.completedModules || [],
+                completedPages: progress.completedPages || [],
+                lastViewedPage: progress.lastViewedPage || null,
+                lastViewedAt: progress.lastViewedAt || null
+            }
+        };
+    });
+
+    return JSON.parse(JSON.stringify(enrichedCourses));
+}
+
+export async function getStudentProgress(courseId: string) {
+    const session = await getServerSession(authOptions);
+    const isDev = process.env.DEV_MODE === "true";
+
+    if (!session && !isDev) {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+
+    const User = (await import("@/models/User")).default;
+    const userId = session?.user?.id;
+    
+    if (!userId) return null;
+
+    const user = await User.findById(userId).lean();
+    if (!user) return null;
+
+    const progressMap = user.progress || new Map();
+    const progress = progressMap.get(courseId.toString()) || {};
+
+    return JSON.parse(JSON.stringify(progress));
+}
+
+export async function updateStudentProgress(courseId: string, pageId: string) {
+    const session = await getServerSession(authOptions);
+    const isDev = process.env.DEV_MODE === "true";
+
+    if (!session && !isDev) {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+
+    const User = (await import("@/models/User")).default;
+    const userId = session?.user?.id;
+    
+    if (!userId) return { success: false };
+
+    const user = await User.findById(userId);
+    if (!user) return { success: false };
+
+    // Initialize progress map if needed
+    if (!user.progress) user.progress = new Map();
+
+    let courseProgress = user.progress.get(courseId.toString()) || {
+        completedModules: [],
+        completedPages: [],
+        lastViewedPage: null,
+        lastViewedAt: null
+    };
+
+    // Update last viewed page and timestamp
+    courseProgress.lastViewedPage = pageId;
+    courseProgress.lastViewedAt = new Date();
+
+    // Add to completed pages if not already there
+    if (!courseProgress.completedPages) courseProgress.completedPages = [];
+    if (!courseProgress.completedPages.includes(pageId)) {
+        courseProgress.completedPages.push(pageId);
+    }
+
+    user.progress.set(courseId.toString(), courseProgress);
+    await user.save();
+
+    return { success: true };
 }
