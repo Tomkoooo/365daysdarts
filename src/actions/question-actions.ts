@@ -2,13 +2,12 @@
 
 import connectDB from "@/lib/db";
 import Question from "@/models/Question";
-import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getAuthSession } from "@/lib/session";
 
 export async function getQuestionsForModule(moduleId: string) {
-    const session = await getServerSession(authOptions);
-    const isDev = process.env.DEV_MODE === "true";
-    if (!session && !isDev) throw new Error("Unauthorized");
+    const session = await getAuthSession();
+    if (!session) throw new Error("Unauthorized");
 
     await connectDB();
     const questions = await Question.find({ moduleId }).sort({ createdAt: -1 }).lean();
@@ -16,9 +15,8 @@ export async function getQuestionsForModule(moduleId: string) {
 }
 
 export async function createQuestion(moduleId: string, data: { text: string, options: string[], correctOptions: number[] }) {
-    const session: any = await getServerSession(authOptions);
-    const isDev = process.env.DEV_MODE === "true";
-    if (!session && !isDev && session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
+    const session = await getAuthSession();
+    if (session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
         throw new Error("Unauthorized");
     }
 
@@ -34,9 +32,8 @@ export async function createQuestion(moduleId: string, data: { text: string, opt
 }
 
 export async function deleteQuestion(questionId: string) {
-    const session: any = await getServerSession(authOptions);
-    const isDev = process.env.DEV_MODE === "true";
-    if (!session && !isDev && session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
+    const session = await getAuthSession();
+    if (session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
         throw new Error("Unauthorized");
     }
 

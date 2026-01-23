@@ -5,28 +5,42 @@ import { useState, useEffect } from "react"
 import { CourseSidebar } from "@/components/course/CourseSidebar"
 import { VideoPlayer } from "@/components/course/VideoPlayer"
 import { PDFViewer } from "@/components/course/PDFViewer"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Menu, ChevronLeft, ChevronRight, CheckCircle } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Navbar } from "@/components/layout/Navbar"
 import { ModuleExamRunner } from "@/components/course/ModuleExamRunner"
 import { FinalExamRunner } from "@/components/course/FinalExamRunner"
-import { updateStudentProgress } from "@/actions/course-actions"
+import { startModuleExam, submitFinalExam, submitModuleExam } from "@/actions/exam-actions"
+import { updateStudentProgress, getStudentProgress } from "@/actions/course-actions"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface CoursePlayerClientProps {
   course: any;
+  progress?: any;
   previewMode?: boolean; // New prop for lecturer preview
+  initialPageId?: string;
 }
 
-export default function CoursePlayerClient({ course, previewMode = false }: CoursePlayerClientProps) {
+export default function CoursePlayerClient({ 
+  course, 
+  progress = {},
+  previewMode = false,
+  initialPageId 
+}: CoursePlayerClientProps) {
+  const router = useRouter();
   // Helpers to find initial state
   const firstModule = course.modules?.[0];
   const firstChapter = firstModule?.chapters?.[0];
   const firstPage = firstChapter?.pages?.[0];
 
-  const [currentId, setCurrentId] = useState<string>(firstPage?._id || "");
+  const [currentId, setCurrentId] = useState<string>(initialPageId || firstPage?._id || "");
   const [viewingMode, setViewingMode] = useState<'page' | 'exam' | 'final-exam'>('page');
   const [examModuleId, setExamModuleId] = useState<string | null>(null);
+  const [userProgress, setUserProgress] = useState(progress);
+  const [loading, setLoading] = useState(false);
+  const [imgLoading, setImgLoading] = useState(true);
 
   // Flatten pages for easy navigation
   const allPages: any[] = [];
@@ -45,7 +59,7 @@ export default function CoursePlayerClient({ course, previewMode = false }: Cour
   // Track progress when page changes (Disable in preview mode)
   useEffect(() => {
     if (!previewMode && viewingMode === 'page' && currentId && course._id) {
-      updateStudentProgress(course._id, currentId).catch(err => {
+      updateStudentProgress(course._id, currentId).catch((err: any) => {
         console.error('Failed to update progress:', err)
       })
     }
@@ -57,32 +71,42 @@ export default function CoursePlayerClient({ course, previewMode = false }: Cour
   
   // Navigation Logic
   function handleSelect(id: string) {
+      if (id === currentId && viewingMode === 'page') return;
+      setLoading(true);
       setCurrentId(id);
       setViewingMode('page');
       setExamModuleId(null);
+      setImgLoading(true);
+      setTimeout(() => setLoading(false), 300);
   }
 
   function handleSelectExam(moduleId: string) {
+      setLoading(true);
       if (moduleId === 'final-exam') {
           setViewingMode('final-exam');
           setExamModuleId(null);
           setCurrentId('exam-final-exam');
-          return;
+      } else {
+          setExamModuleId(moduleId);
+          setViewingMode('exam');
+          setCurrentId(`exam-${moduleId}`);
       }
-      setExamModuleId(moduleId);
-      setViewingMode('exam');
-      setCurrentId(`exam-${moduleId}`);
+      setTimeout(() => setLoading(false), 300);
   }
 
-  function handleExamComplete(passed: boolean) {
+  async function handleExamComplete(passed: boolean) {
       if (passed) {
-          alert("Exam Passed! Moving to next module...");
+          // Refresh progress data
+          const newProgress = await getStudentProgress(course._id);
+          if (newProgress) setUserProgress(newProgress);
+
+          alert("Sikeres vizsga! Következő modul feloldva.");
           const currentModuleIndex = course.modules.findIndex((m: any) => m._id === examModuleId);
           const nextModule = course.modules[currentModuleIndex + 1];
           if (nextModule && nextModule.chapters[0]?.pages[0]) {
               handleSelect(nextModule.chapters[0].pages[0]._id);
           } else {
-              alert("Course Completed! Proceed to Final Exam if ready.");
+              alert("Gratulálunk! Minden modult teljesítettél. Most már elindíthatod a záróvizsgát.");
           }
       }
   }
@@ -106,6 +130,7 @@ export default function CoursePlayerClient({ course, previewMode = false }: Cour
       courseTitle={course.title} 
       modules={course.modules || []} 
       currentLectureId={currentId}
+      progress={userProgress}
       onLectureSelect={handleSelect}
       onModuleExamSelect={handleSelectExam}
     />
@@ -145,65 +170,84 @@ export default function CoursePlayerClient({ course, previewMode = false }: Cour
                  </div>
              ) : (
                 <div className="text-lg font-bold">
-                    {viewingMode === 'exam' ? 'Module Exam' : viewingMode === 'final-exam' ? 'Final Exam' : 'Course Content'}
+                    {viewingMode === 'exam' ? 'Modulzáró vizsga' : viewingMode === 'final-exam' ? 'Záróvizsga' : 'Kurzus Tartalom'}
                 </div>
              )}
           </div>
 
           {/* 2. Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-12 bg-muted/10">
-             <div className="max-w-4xl mx-auto h-full flex flex-col">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-muted/10">
+             <div className="max-w-5xl mx-auto h-full flex flex-col items-center">
                  
-                 {viewingMode === 'page' && currentPageData ? (
-                     <div className="flex-1 flex flex-col min-h-0"> 
-                         {/* Content Renders */}
-                         {currentPageData.type === 'video' && (
-                             <div className="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-lg">
-                                 <VideoPlayer url={currentPageData.mediaUrl || ""} />
-                             </div>
-                         )}
-                         
-                         {currentPageData.type === 'pdf' && (
-                             <div className="flex-1 min-h-[500px] border rounded-lg overflow-hidden shadow-sm">
-                                  <PDFViewer 
-                                    url={currentPageData.mediaUrl || "/dummy.pdf"} 
-                                    pageIndex={currentPageData.pdfPageIndex} 
-                                  />
-                             </div>
-                         )}
-                         
-                         {currentPageData.type === 'text' && (
-                             <div className="prose prose-lg dark:prose-invert max-w-none bg-background p-8 rounded-lg shadow-sm border">
-                                 <div dangerouslySetInnerHTML={{ __html: currentPageData.content || "" }} />
-                             </div>
-                         )}
+                {loading ? (
+                    <div className="space-y-6">
+                        <Skeleton className="h-[400px] w-full rounded-xl" />
+                        <Skeleton className="h-10 w-3/4" />
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-2/3" />
+                        </div>
+                    </div>
+                ) : viewingMode === 'page' && currentPageData ? (
+                    <div className="flex-1 flex flex-col min-h-0"> 
+                        {/* Content Renders */}
+                        {currentPageData.type === 'video' && (
+                            <div className="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-lg">
+                                <VideoPlayer url={currentPageData.mediaUrl || ""} />
+                            </div>
+                        )}
+                        
+                        {currentPageData.type === 'pdf' && (
+                            <div className="flex-1 min-h-[500px] border rounded-lg overflow-hidden shadow-sm">
+                                 <PDFViewer 
+                                   url={currentPageData.mediaUrl || "/dummy.pdf"} 
+                                   pageIndex={currentPageData.pdfPageIndex} 
+                                 />
+                            </div>
+                        )}
+                        
+                        {currentPageData.type === 'text' && (
+                            <div className="prose prose-lg dark:prose-invert max-w-none bg-background p-8 rounded-lg shadow-sm border">
+                                <div dangerouslySetInnerHTML={{ __html: currentPageData.content || "" }} />
+                            </div>
+                        )}
 
-                         {currentPageData.type === 'image' && (
-                             <div className="flex justify-center bg-background p-4 rounded-lg border shadow-sm">
-                                 <img src={currentPageData.mediaUrl} alt={currentPageData.title} className="max-w-full h-auto rounded" />
-                             </div>
-                         )}
-                     </div>
-                 ) : viewingMode === 'exam' && examModuleId ? (
-                     <ModuleExamRunner 
-                        moduleId={examModuleId} 
-                        onComplete={handleExamComplete}
-                        onCancel={() => {
-                            const m = course.modules.find((m: any) => m._id === examModuleId);
-                            if(m?.chapters?.[0]?.pages?.[0]) handleSelect(m.chapters[0].pages[0]._id);
+                        {currentPageData.type === 'image' && (
+                            <div className="relative flex justify-center bg-background p-4 rounded-lg border shadow-sm min-h-[400px]">
+                                {imgLoading && <Skeleton className="absolute inset-0 m-4 rounded-lg" />}
+                                <img 
+                                    src={currentPageData.mediaUrl} 
+                                    alt={currentPageData.title} 
+                                    className={`max-w-full h-auto rounded transition-opacity duration-300 ${imgLoading ? 'opacity-0' : 'opacity-100'}`} 
+                                    onLoad={() => setImgLoading(false)}
+                                />
+                            </div>
+                        )}
+                    </div>
+                ) : viewingMode === 'exam' && examModuleId ? (
+                    <ModuleExamRunner 
+                       moduleId={examModuleId} 
+                       onComplete={handleExamComplete}
+                       onCancel={() => {
+                           const m = course.modules.find((m: any) => m._id === examModuleId);
+                           if(m?.chapters?.[0]?.pages?.[0]) handleSelect(m.chapters[0].pages[0]._id);
+                       }}
+                    />
+                ) : viewingMode === 'final-exam' ? (
+                    <FinalExamRunner 
+                        courseId={course._id}
+                        onComplete={(passed) => {
+                            if (passed) {
+                                alert("Gratulálunk! Sikeresen elvégezted a kurzust és sikeres záróvizsgát tettél. Most visszairányítunk a főoldalra.");
+                                router.push("/dashboard");
+                            }
                         }}
-                     />
-                 ) : viewingMode === 'final-exam' ? (
-                     <FinalExamRunner 
-                         courseId={course._id}
-                         onComplete={(passed) => {
-                             if (passed) alert("Congratulations! You passed the course.");
-                         }}
-                         onCancel={() => handleSelect(firstPage._id)}
-                     />
-                 ) : (
-                     <div className="flex items-center justify-center h-full text-muted-foreground">Select a page to start learning.</div>
-                 )}
+                        onCancel={() => handleSelect(firstPage._id)}
+                    />
+                ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">Válassz egy oldalt a kezdéshez.</div>
+                )}
              </div>
           </div>
 

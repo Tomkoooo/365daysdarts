@@ -2,15 +2,14 @@
 
 import connectDB from "@/lib/db";
 import User from "@/models/User";
-import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getAuthSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
 export async function getAllUsers() {
-  const session = await getServerSession(authOptions);
-  const isDev = process.env.DEV_MODE === "true";
+  const session = await getAuthSession();
 
-  if (!isDev && session?.user?.role !== "admin") {
+  if (session?.user?.role !== "admin") {
     throw new Error("Unauthorized");
   }
 
@@ -20,10 +19,9 @@ export async function getAllUsers() {
 }
 
 export async function updateUserRole(userId: string, newRole: string) {
-  const session = await getServerSession(authOptions);
-  const isDev = process.env.DEV_MODE === "true";
+  const session = await getAuthSession();
 
-  if (!isDev && session?.user?.role !== "admin") {
+  if (session?.user?.role !== "admin") {
     throw new Error("Unauthorized");
   }
 

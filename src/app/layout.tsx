@@ -1,10 +1,9 @@
 import { DevModeRoleSwitcher } from "@/components/dev/DevModeRoleSwitcher";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { getAuthSession } from "@/lib/session";
 import AuthProvider from "@/components/providers/AuthProvider";
 import PrivacyWrapper from "@/components/layout/PrivacyWrapper";
-import { authOptions } from "@/lib/auth";
-import { getServerSession } from "next-auth";
 import { UserRole } from "@/models/User";
 import { cookies } from "next/headers";
 import "./globals.css";
@@ -29,24 +28,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let session = await getServerSession(authOptions);
-
-  // Mock Session for Dev Mode
-  if (!session && process.env.DEV_MODE === "true") {
-    const cookieStore = await cookies();
-    const devRole = cookieStore.get("dev_role")?.value || "admin";
-    
-    session = {
-      user: {
-        name: `Dev ${devRole.charAt(0).toUpperCase() + devRole.slice(1)}`,
-        email: "dev@example.com",
-        image: "",
-        id: "dev-id",
-        role: devRole as UserRole
-      },
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    };
-  }
+  const session = await getAuthSession();
 
   return (
     <html lang="en">

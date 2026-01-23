@@ -5,19 +5,23 @@ import Course from "@/models/Course";
 import Module from "@/models/Module";
 import Chapter from "@/models/Chapter";
 import Page from "@/models/Page";
-import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getAuthSession } from "@/lib/session";
+import { revalidatePath } from "next/cache";
+import User from "@/models/User";
 
 export async function getCourseWithContent(courseId: string) {
-  const session = await getServerSession(authOptions);
-  // Simpler dev mode check
-  const isDev = process.env.DEV_MODE === "true";
+  const session = await getAuthSession();
 
-  if (!session && !isDev) {
+  if (!session) {
     throw new Error("Unauthorized");
   }
 
   await connectDB();
+  const Course = (await import("@/models/Course")).default;
+  const Module = (await import("@/models/Module")).default;
+  const Chapter = (await import("@/models/Chapter")).default;
+  const Page = (await import("@/models/Page")).default;
 
   const course = await Course.findById(courseId).populate({
     path: "modules",
@@ -52,10 +56,9 @@ export async function getAllCourses() {
 // --- Lecturer Actions ---
 
 export async function createCourse(data: { title: string, description: string, imageUrl: string }) {
-  const session = await getServerSession(authOptions);
-  const isDev = process.env.DEV_MODE === "true";
+  const session = await getAuthSession();
 
-  if (!isDev && session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
+  if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
       throw new Error("Unauthorized");
   }
 
@@ -150,10 +153,9 @@ export async function updateCourseSettings(courseId: string, settings: { finalEx
 // --- Student Progress Actions ---
 
 export async function getStudentCourses() {
-    const session = await getServerSession(authOptions);
-    const isDev = process.env.DEV_MODE === "true";
+    const session = await getAuthSession();
 
-    if (!session && !isDev) {
+    if (!session) {
         throw new Error("Unauthorized");
     }
 
@@ -169,25 +171,57 @@ export async function getStudentCourses() {
     if (!user) return [];
 
     // Get all courses where user has progress
-    const progressMap = user.progress || new Map();
-    const courseIds = Array.from(progressMap.keys());
+    // Since we used .lean(), progress is a plain object, not a Map
+    const progressObj = user.progress || {};
+    const courseIds = Object.keys(progressObj);
 
     if (courseIds.length === 0) return [];
 
     const courses = await Course.find({ _id: { $in: courseIds } })
-        .select("title description thumbnail")
+        .populate({
+            path: "modules",
+            populate: {
+                path: "chapters",
+                populate: {
+                    path: "pages",
+                    select: "_id"
+                }
+            }
+        })
         .lean();
 
     // Enrich with progress data
     const enrichedCourses = courses.map((course: any) => {
-        const progress = progressMap.get(course._id.toString()) || {};
+        const progress = progressObj[course._id.toString()] || {};
+        
+        // Count total pages
+        let totalPages = 0;
+        course.modules?.forEach((m: any) => {
+            m.chapters?.forEach((c: any) => {
+                totalPages += c.pages?.length || 0;
+            });
+        });
+
+        const completedPages = progress.completedPages?.length || 0;
+        let progressPercent = totalPages > 0 ? Math.round((completedPages / totalPages) * 100) : 0;
+        
+        // If course is fully completed, ensure 100%
+        if (progress.courseCompleted) {
+            progressPercent = 100;
+        }
+
         return {
-            ...course,
+            _id: course._id.toString(),
+            title: course.title,
+            description: course.description,
+            thumbnail: course.thumbnail,
             progress: {
                 completedModules: progress.completedModules || [],
                 completedPages: progress.completedPages || [],
                 lastViewedPage: progress.lastViewedPage || null,
-                lastViewedAt: progress.lastViewedAt || null
+                lastViewedAt: progress.lastViewedAt || null,
+                percent: progressPercent,
+                courseCompleted: progress.courseCompleted || false
             }
         };
     });
@@ -195,11 +229,47 @@ export async function getStudentCourses() {
     return JSON.parse(JSON.stringify(enrichedCourses));
 }
 
-export async function getStudentProgress(courseId: string) {
-    const session = await getServerSession(authOptions);
-    const isDev = process.env.DEV_MODE === "true";
+export async function enrollInCourse(courseId: string) {
+    const session = await getAuthSession();
 
-    if (!session && !isDev) {
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+
+    const User = (await import("@/models/User")).default;
+    const userId = session?.user?.id;
+    
+    if (!userId) return { success: false };
+
+    const user = await User.findById(userId);
+    if (!user) return { success: false };
+
+    if (!user.progress) user.progress = new Map();
+
+    // Only initialize if not already enrolled
+    if (!user.progress || !user.progress.has(courseId.toString())) {
+        if (!user.progress) user.progress = new Map();
+        
+        user.progress.set(courseId.toString(), {
+            completedModules: [],
+            completedPages: [],
+            lastViewedPage: null,
+            lastViewedAt: new Date()
+        });
+        
+        user.markModified('progress');
+        await user.save();
+    }
+
+    return { success: true };
+}
+
+export async function getStudentProgress(courseId: string) {
+    const session = await getAuthSession();
+
+    if (!session) {
         throw new Error("Unauthorized");
     }
 
@@ -213,23 +283,14 @@ export async function getStudentProgress(courseId: string) {
     const user = await User.findById(userId).lean();
     if (!user) return null;
 
-    const progressMap = user.progress || new Map();
-    const progress = progressMap.get(courseId.toString()) || {};
+    const progressObj = user.progress || {};
+    const progress = progressObj[courseId.toString()] || {};
 
     return JSON.parse(JSON.stringify(progress));
 }
 
 export async function updateStudentProgress(courseId: string, pageId: string) {
-    const session = await getServerSession(authOptions);
-    const isDev = process.env.DEV_MODE === "true";
-
-    if (!session && !isDev) {
-        throw new Error("Unauthorized");
-    }
-
-    await connectDB();
-
-    const User = (await import("@/models/User")).default;
+    const session = await getAuthSession();
     const userId = session?.user?.id;
     
     if (!userId) return { success: false };
@@ -258,6 +319,7 @@ export async function updateStudentProgress(courseId: string, pageId: string) {
     }
 
     user.progress.set(courseId.toString(), courseProgress);
+    user.markModified('progress');
     await user.save();
 
     return { success: true };

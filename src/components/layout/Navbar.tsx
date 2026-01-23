@@ -10,15 +10,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import Image from "next/image"
 
 export function Navbar() {
   const { data: session } = useSession()
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+    <nav style={{ backgroundColor: "#031947" }} className="border-b text-white backdrop-blur supports-[backdrop-filter]:bg-background/60  sticky top-0 z-50">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
+        
         <Link href="/" className="font-bold text-xl tracking-tight flex items-center gap-2">
-           <span className="text-2xl">🎯</span> 365days<span className="text-primary">darts</span>
+        <Image src="/logo.svg" alt="Logo" width={128} height={128} />
+           <span className="text-2xl"></span> 365days<span className="text-primary">darts</span>
         </Link>
         <div className="flex items-center gap-4">
           {session ? (

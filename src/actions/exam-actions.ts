@@ -4,8 +4,8 @@ import connectDB from "@/lib/db";
 import Question from "@/models/Question";
 import Module from "@/models/Module"; // Added
 import Course from "@/models/Course"; // Added
-import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getAuthSession } from "@/lib/session";
 import mongoose from "mongoose"; // Added
 
 import ExamResult from "@/models/ExamResult";
@@ -14,10 +14,9 @@ import User from "@/models/User";
 // --- Practice Mode ---
 
 export async function getPracticeQuestions() {
-  const session = await getServerSession(authOptions);
-  const isDev = process.env.DEV_MODE === "true";
+  const session = await getAuthSession();
 
-  if (!session && !isDev) {
+  if (!session) {
     throw new Error("Unauthorized");
   }
 
@@ -43,9 +42,8 @@ export async function getPracticeQuestions() {
 // --- Module Exam Mode ---
 
 export async function startModuleExam(moduleId: string) {
-    const session = await getServerSession(authOptions);
-    const isDev = process.env.DEV_MODE === "true";
-    if (!session && !isDev) throw new Error("Unauthorized");
+    const session = await getAuthSession();
+    if (!session) throw new Error("Unauthorized");
 
     await connectDB();
 
@@ -54,10 +52,14 @@ export async function startModuleExam(moduleId: string) {
 
     const settings = module.quizSettings || { questionCount: 10, timeLimit: 30, passingScore: 75 };
 
-    // Check for existing active attempt? (Simplification: just create new for now, or return existing)
-    // For module exams, we allow infinite retries, so just create new.
-
-    const userId = session?.user?.id || (isDev ? new mongoose.Types.ObjectId() : null);
+    // Check if player already passed this module
+    const userId = session.user.id;
+    const User = (await import("@/models/User")).default;
+    const user = await User.findById(userId);
+    const progress = user?.progress?.get(module.courseId.toString());
+    if (progress?.completedModules?.includes(moduleId)) {
+        return { error: "Ezt a vizsgát már sikeresen teljesítetted!" };
+    }
     
     // Fetch random questions from this module
     const questions = await Question.aggregate([
@@ -99,10 +101,9 @@ export async function startModuleExam(moduleId: string) {
 // --- Final Exam Mode ---
 
 export async function startFinalExam(courseId: string) {
-  const session = await getServerSession(authOptions);
-  const isDev = process.env.DEV_MODE === "true";
+  const session = await getAuthSession();
 
-  if (!session && !isDev) throw new Error("Unauthorized");
+  if (!session) throw new Error("Unauthorized");
 
   await connectDB();
 
@@ -110,100 +111,173 @@ export async function startFinalExam(courseId: string) {
   const course = await Course.findById(courseId).populate('modules');
   if (!course) throw new Error("Course not found");
 
-  const settings = course.finalExamSettings || { questionCount: 20, passingScore: 75, maxRetries: 3 };
+  const settings = course.finalExamSettings || { questionCount: 20, passingScore: 75, maxRetries: 3, timeLimit: 60 };
 
   // 2. Check Attempts / Retries
   const attempts = await ExamResult.countDocuments({
-      userId: session?.user?.id, // @ts-ignore
+      userId: session.user.id,
       courseId: courseId,
       type: "final",
       completedAt: { $ne: null }
   });
 
   // Get User Progress to check for extra granted attempts
-  const userId = session?.user?.id;
+  const userId = session.user.id;
   const user = userId ? await User.findById(userId) : null;
   const courseProgress = user?.progress?.get(courseId.toString()) || {};
   const extraRetries = courseProgress.extraRetries || 0;
 
-  // If retries are limited (e.g. > 0), check limit
-  if (settings.maxRetries > 0 && attempts >= (settings.maxRetries + extraRetries)) {
-      // Check if user has a special "granted" attempt? (Not implemented yet, assumes strict)
-      // We could return a specific error code
-      return { error: "Max retries exceeded. Please contact your lecturer." };
+  // Check if all modules are completed
+  const completedModules = courseProgress.completedModules || [];
+  console.log(`[startFinalExam] Checking modules for course ${courseId}. User has completed:`, completedModules);
+  
+  // Robust check: compare as strings
+  const allModulesPassed = course.modules.every((m: any) => {
+      const mId = m._id ? m._id.toString() : m.toString();
+      const isDone = completedModules.includes(mId);
+      console.log(`[startFinalExam] Module ${mId} status: ${isDone ? 'PASSED' : 'NOT PASSED'}`);
+      return isDone;
+  });
+  
+  if (!allModulesPassed) {
+      return { error: "HIBA: A záróvizsga megkezdése előtt minden modulzáró vizsgát sikeresen teljesítened kell!" };
+  }
+
+  // If retries are limited, check limit
+  const maxRetries = settings.maxRetries || 3;
+  if (attempts >= (maxRetries + extraRetries)) {
+      return { error: `HIBA: Elérted a maximális vizsgaszámot (${maxRetries + extraRetries}). Kérlek vedd fel a kapcsolatot az oktatóval!` };
   }
 
   // Check for active unfinished exam
   const activeExam = await ExamResult.findOne({
-    userId: session?.user?.id, // @ts-ignore
+    userId: session.user.id,
     courseId: courseId,
     type: "final",
     completedAt: null
   });
 
-  if (activeExam) {
-       // Return existing active exam
-       return { examId: activeExam._id.toString(), startTime: activeExam.startedAt, resume: true };
-  }
-
   // 3. Balanced Question Generation
-  // Strategy: Divide total questions by number of modules.
   const modules = course.modules || [];
-  if (modules.length === 0) return { error: "Course has no modules." };
+  if (modules.length === 0) return { error: "HIBA: Ehhez a kurzushoz nincsenek modulok rendelve." };
 
-  const countPerModule = Math.floor(settings.questionCount / modules.length);
-  const remainder = settings.questionCount % modules.length;
+  // Safe module ID extraction
+  const moduleIds = modules.map((m: any) => {
+    try {
+        if (m && typeof m === 'object' && m._id) return m._id.toString();
+        if (m) return m.toString();
+        return null;
+    } catch (e) {
+        return null;
+    }
+  }).filter((id: string | null) => id !== null) as string[];
 
-  let allQuestions: any[] = [];
+  console.log(`[startFinalExam] Extracted Module IDs for course ${courseId}:`, moduleIds);
 
-  for (let i = 0; i < modules.length; i++) {
-        const mod = modules[i];
-        // Add remainder to first few modules to hit total count
-        const size = countPerModule + (i < remainder ? 1 : 0);
-        
-        if (size > 0) {
-            const modQuestions = await Question.aggregate([
-                { $match: { moduleId: mod._id } },
-                { $sample: { size: size } }
-            ]);
-            allQuestions = [...allQuestions, ...modQuestions];
-        }
+  const objectIdModuleIds = moduleIds.map((id: string) => {
+      try {
+          return new mongoose.Types.ObjectId(id);
+      } catch (e) {
+          console.error(`[startFinalExam] Invalid ObjectId format: ${id}`);
+          return null;
+      }
+  }).filter(id => id !== null);
+
+  // Fetch ALL questions from these modules first
+  const allPoolQuestions = await Question.find({ 
+      moduleId: { $in: objectIdModuleIds } 
+  }).lean();
+
+  console.log(`[startFinalExam] Found ${allPoolQuestions.length} total questions in ${moduleIds.length} modules.`);
+
+  if (allPoolQuestions.length === 0) {
+      return { error: "HIBA: Ehhez a kurzushoz egyetlen modulban sincsenek kérdések feltöltve. Kérlek adj hozzá több kérdést!" };
   }
 
-  // Shuffle the combined questions
-  allQuestions = allQuestions.sort(() => Math.random() - 0.5);
-
-  // 4. Create Exam Record
-  const newExam = await ExamResult.create({
-    userId: session?.user?.id, // @ts-ignore
-    courseId: courseId,
-    type: "final",
-    score: 0,
-    totalQuestions: allQuestions.length,
-    answers: [],
-    startedAt: new Date()
-  });
+  let finalQuestions: any[] = [];
   
-  const formattedQuestions = allQuestions.map((q: any) => ({
+  if (allPoolQuestions.length <= settings.questionCount) {
+      // If total pool is smaller or equal to target, take everything
+      finalQuestions = allPoolQuestions;
+  } else {
+      // Balanced sampling logic
+      const byModule: Record<string, any[]> = {};
+      moduleIds.forEach((id: string) => { byModule[id] = []; });
+      allPoolQuestions.forEach((q: any) => {
+          const mId = q.moduleId?.toString();
+          if (mId && byModule[mId]) byModule[mId].push(q);
+      });
+
+      const countPerModule = Math.floor(settings.questionCount / moduleIds.length);
+      const remainderInitial = settings.questionCount % moduleIds.length;
+      let extraNeeded = 0;
+
+      moduleIds.forEach((mId: string, i: number) => {
+          const pool = byModule[mId];
+          const targetSize = countPerModule + (i < remainderInitial ? 1 : 0);
+          
+          if (pool.length <= targetSize) {
+              finalQuestions = [...finalQuestions, ...pool];
+              extraNeeded += (targetSize - pool.length);
+          } else {
+              const sampled = pool.sort(() => 0.5 - Math.random()).slice(0, targetSize);
+              finalQuestions = [...finalQuestions, ...sampled];
+          }
+      });
+
+      // Fill gaps if some modules were under-represented
+      if (extraNeeded > 0) {
+          const currentIds = new Set(finalQuestions.map(q => q._id.toString()));
+          const availableFallback = allPoolQuestions.filter(q => !currentIds.has(q._id.toString()));
+          const extraSample = availableFallback.sort(() => 0.5 - Math.random()).slice(0, extraNeeded);
+          finalQuestions = [...finalQuestions, ...extraSample];
+      }
+  }
+
+  // Shuffle final selection
+  finalQuestions = finalQuestions.sort(() => 0.5 - Math.random());
+
+  const formattedQuestions = finalQuestions.map((q: any) => ({
     id: q._id.toString(),
     text: q.text,
     options: q.options,
-    // DO NOT SEND CORRECT OPTIONS FOR FINAL EXAM
   }));
+
+  if (activeExam) {
+       // On resume, we return the SAME record but refresh the questions (as we don't store them)
+       // This is a sacrifice to avoid db schema migration now, but ensures it WORKS.
+       return { 
+           examId: activeExam._id.toString(), 
+           questions: formattedQuestions, 
+           startTime: activeExam.startedAt, 
+           resume: true,
+           timeLimit: settings.timeLimit || 60
+       };
+  }
+
+  // 4. Create Exam Record
+  const newExam = await ExamResult.create({
+    userId: session?.user?.id, 
+    courseId: courseId,
+    type: "final",
+    score: 0,
+    totalQuestions: finalQuestions.length,
+    answers: [],
+    startedAt: new Date()
+  });
 
   return { 
     examId: newExam._id.toString(), 
     questions: formattedQuestions,
     startTime: newExam.startedAt,
-    timeLimit: 60 // Default 60 min for final or add to settings if needed
+    timeLimit: settings.timeLimit || 60
   };
 }
 
 
 export async function submitModuleExam(examId: string, answers: Record<string, number[]>) {
-    const session = await getServerSession(authOptions);
-    const isDev = process.env.DEV_MODE === "true";
-    if (!session && !isDev) throw new Error("Unauthorized");
+    const session = await getAuthSession();
+    if (!session) throw new Error("Unauthorized");
 
     await connectDB();
 
@@ -262,22 +336,24 @@ export async function submitModuleExam(examId: string, answers: Record<string, n
         // Mongoose Map special handling might be needed, but for now assuming POJO struct inside
         // Add to completedModules if not there
         if (!courseProgress.completedModules) courseProgress.completedModules = [];
-        if (!courseProgress.completedModules.includes(exam.moduleId.toString())) {
-            courseProgress.completedModules.push(exam.moduleId.toString());
+        const currentModuleId = exam.moduleId?.toString();
+        if (currentModuleId && !courseProgress.completedModules.includes(currentModuleId)) {
+            courseProgress.completedModules.push(currentModuleId);
         }
-        
+       
         // Mongoose Map set
         user.progress.set(exam.courseId.toString(), courseProgress);
+        user.markModified('progress');
         await user.save();
+        console.log(`[submitModuleExam] Progress saved for course ${exam.courseId}, modules:`, courseProgress.completedModules);
     }
 
     return { success: true, score, passed, passingScore };
 }
 
 export async function submitFinalExam(examId: string, answers: Record<string, number[]>) {
-    const session = await getServerSession(authOptions);
-    const isDev = process.env.DEV_MODE === "true";
-    if (!session && !isDev) throw new Error("Unauthorized");
+    const session = await getAuthSession();
+    if (!session) throw new Error("Unauthorized");
 
     await connectDB();
 
@@ -334,17 +410,30 @@ export async function submitFinalExam(examId: string, answers: Record<string, nu
     exam.totalQuestions = questions.length;
     await exam.save();
 
-    // Check passing info (e.g. 75%)
-    // Can update Course progress here too if needed
+    const passed = score >= 75;
 
-    return { success: true, score, passed: score >= 75 };
+    // If final exam passed, mark course as completed in progress
+    if (passed && session?.user?.id) {
+        const user = await User.findById(session.user.id);
+        if (user) {
+            if (!user.progress) user.progress = new Map();
+            let courseProgress = user.progress.get(exam.courseId.toString()) || { completedModules: [], completedPages: [] };
+            courseProgress.finalExamPassed = true;
+            courseProgress.courseCompleted = true; // Mark as fully completed
+            user.progress.set(exam.courseId.toString(), courseProgress);
+            user.markModified('progress');
+            await user.save();
+        }
+    }
+
+    return { success: true, score, passed };
 }
 
 // --- Lecturer Actions ---
 
 export async function getLecturerExamResults() {
-    const session = await getServerSession(authOptions);
-    if (process.env.DEV_MODE !== "true" && session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
+    const session = await getAuthSession();
+    if (session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
         throw new Error("Unauthorized");
     }
 
@@ -360,8 +449,8 @@ export async function getLecturerExamResults() {
 }
 
 export async function getStudentStats() {
-    const session = await getServerSession(authOptions);
-    if (process.env.DEV_MODE !== "true" && session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
+    const session = await getAuthSession();
+    if (session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
         throw new Error("Unauthorized");
     }
 
@@ -399,8 +488,8 @@ export async function getStudentStats() {
 }
 
 export async function grantExtraRetry(studentId: string, courseId: string) {
-    const session = await getServerSession(authOptions);
-    if (process.env.DEV_MODE !== "true" && session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
+    const session = await getAuthSession();
+    if (session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
         throw new Error("Unauthorized");
     }
 

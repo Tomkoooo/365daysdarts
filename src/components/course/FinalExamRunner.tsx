@@ -14,6 +14,8 @@ interface FinalExamRunnerProps {
     onCancel: () => void;
 }
 
+import { Skeleton } from "@/components/ui/skeleton"
+
 export function FinalExamRunner({ courseId, onComplete, onCancel }: FinalExamRunnerProps) {
     const [loading, setLoading] = useState(true)
     const [examData, setExamData] = useState<any>(null)
@@ -46,10 +48,14 @@ export function FinalExamRunner({ courseId, onComplete, onCancel }: FinalExamRun
     }, [timeLeft, result])
 
     async function startExam() {
+        setLoading(true)
+        setError(null)
         try {
             const data = await startFinalExam(courseId)
             if (data.error) {
                 setError(data.error)
+            } else if (!data.questions || data.questions.length === 0) {
+                setError("HIBA: A szerver nem küldött kérdéseket a vizsgához.")
             } else {
                 setExamData(data)
                 // Calculate time left from startTime + timeLimit
@@ -61,7 +67,7 @@ export function FinalExamRunner({ courseId, onComplete, onCancel }: FinalExamRun
             }
         } catch (e) {
             console.error("Failed to start final exam", e)
-            setError("Failed to start exam. Please try again.")
+            setError("Az vizsga elindítása sikertelen. Kérjük próbáld újra.")
         } finally {
             setLoading(false)
         }
@@ -75,14 +81,14 @@ export function FinalExamRunner({ courseId, onComplete, onCancel }: FinalExamRun
     }
 
     async function handleSubmit() {
-        if (!examData) return
+        if (!examData?.examId) return
         setSubmitting(true)
         try {
             const res = await submitFinalExam(examData.examId, answers)
             setResult(res)
         } catch (e) {
             console.error("Failed to submit", e)
-            alert("Failed to submit exam")
+            alert("Sikertelen beküldés")
         } finally {
             setSubmitting(false)
         }
@@ -94,21 +100,45 @@ export function FinalExamRunner({ courseId, onComplete, onCancel }: FinalExamRun
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
     }
 
-    if (loading) return <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
+    if (loading) {
+        return (
+            <Card className="w-full min-w-[320px] sm:min-w-[500px] md:min-w-[700px] lg:min-w-[800px] max-w-4xl mx-auto mt-8 shadow-lg">
+                <CardHeader className="border-b bg-muted/20">
+                    <div className="flex justify-between items-center mb-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-10 w-24" />
+                    </div>
+                    <Skeleton className="h-2 w-full mt-4" />
+                </CardHeader>
+                <CardContent className="space-y-8 pt-8 min-h-[400px]">
+                    <Skeleton className="h-8 w-3/4 mb-4" />
+                    <div className="space-y-4">
+                        <Skeleton className="h-14 w-full" />
+                        <Skeleton className="h-14 w-full" />
+                        <Skeleton className="h-14 w-full" />
+                    </div>
+                </CardContent>
+                <CardFooter className="justify-between border-t bg-muted/20 p-6">
+                    <Skeleton className="h-10 w-24" />
+                    <Skeleton className="h-10 w-32" />
+                </CardFooter>
+            </Card>
+        )
+    }
 
     if (error) {
         return (
-            <Card className="max-w-xl mx-auto mt-8 border-destructive/50 bg-destructive/10">
+            <Card className="max-w-xl mx-auto mt-8 border-destructive/50 bg-destructive/5">
                 <CardHeader>
                     <CardTitle className="text-destructive flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5" /> Unable to Start Exam
+                        <AlertTriangle className="h-5 w-5" /> Hiba történt
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-destructive-foreground">{error}</p>
+                    <p className="text-muted-foreground">{error}</p>
                 </CardContent>
                 <CardFooter>
-                    <Button variant="outline" onClick={onCancel}>Back to Course</Button>
+                    <Button variant="outline" onClick={onCancel}>Vissza a kurzushoz</Button>
                 </CardFooter>
             </Card>
         )
@@ -119,42 +149,52 @@ export function FinalExamRunner({ courseId, onComplete, onCancel }: FinalExamRun
             <Card className="max-w-xl mx-auto mt-8">
                 <CardHeader>
                     <CardTitle className={result.passed ? "text-green-600" : "text-destructive"}>
-                        {result.passed ? "Final Exam Passed!" : "Final Exam Failed"}
+                        {result.passed ? "Záróvizsga sikeres!" : "Záróvizsga sikertelen"}
                     </CardTitle>
                     <CardDescription>
-                        You scored {result.score}%.
+                        Pontszámod: {result.score}%.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4">
                     {result.passed ? <CheckCircle className="h-16 w-16 text-green-500" /> : <XCircle className="h-16 w-16 text-destructive" />}
                     <p className="text-center text-muted-foreground">
                         {result.passed 
-                            ? "Congratulations! You have successfully completed the course." 
-                            : "Unfortunately you did not pass. You may need to retake the exam if attempts allow."}
+                            ? "Gratulálunk! Sikeresen elvégezted a kurzust." 
+                            : "Sajnos nem sikerült a vizsga. Nézd át a tananyagot és próbáld újra."}
                     </p>
                 </CardContent>
                 <CardFooter className="justify-center gap-4">
                      <Button onClick={() => onComplete(result.passed)}>
-                        {result.passed ? "Finish Course" : "Return to Course"}
+                        {result.passed ? "Kurzus befejezése" : "Vissza a kurzushoz"}
                      </Button>
                 </CardFooter>
             </Card>
         )
     }
 
-    const currentQuestion = examData?.questions[currentIndex]
+    const questions = examData?.questions || []
+    const currentQuestion = questions[currentIndex]
+
+    if (!currentQuestion) {
+        return (
+            <div className="text-center p-12">
+                <p className="text-muted-foreground">Nem találhatóak kérdések.</p>
+                <Button variant="outline" onClick={onCancel} className="mt-4">Vissza</Button>
+            </div>
+        )
+    }
 
     return (
-        <Card className="max-w-3xl mx-auto mt-8 shadow-lg">
+        <Card className="w-full min-w-[320px] sm:min-w-[500px] md:min-w-[700px] lg:min-w-[800px] max-w-4xl mx-auto mt-8 shadow-lg">
             <CardHeader className="border-b bg-muted/20">
                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-muted-foreground font-medium uppercase tracking-wider">Final Exam</span>
+                    <span className="text-sm text-muted-foreground font-medium uppercase tracking-wider">Záróvizsga</span>
                     <span className={`text-lg font-mono font-bold px-3 py-1 rounded border ${timeLeft < 300 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-background border-border'}`}>
                         {formatTime(timeLeft)}
                     </span>
                  </div>
                  <div className="flex justify-between items-end text-sm mt-2">
-                     <span>Question {currentIndex + 1} of {examData?.questions.length}</span>
+                     <span>{currentIndex + 1}. kérdés a {examData?.questions.length}-ból</span>
                  </div>
                  <div className="w-full bg-secondary h-2 rounded-full overflow-hidden mt-2">
                      <div className="bg-primary h-full transition-all" style={{ width: `${((currentIndex + 1) / examData?.questions.length) * 100}%` }} />
@@ -169,9 +209,28 @@ export function FinalExamRunner({ courseId, onComplete, onCancel }: FinalExamRun
                     className="space-y-3"
                 >
                     {currentQuestion?.options.map((opt: string, idx: number) => (
-                        <div key={idx} className="flex items-center space-x-3 border p-4 rounded-lg hover:bg-accent cursor-pointer transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5 has-[:checked]:shadow-sm">
-                            <RadioGroupItem value={idx.toString()} id={`q${currentIndex}-opt${idx}`} />
-                            <Label htmlFor={`q${currentIndex}-opt${idx}`} className="flex-1 cursor-pointer text-base font-normal">{opt}</Label>
+                        <div 
+                            key={idx} 
+                            onClick={() => handleOptionSelect(currentQuestion.id, idx)}
+                            className={`flex items-center space-x-3 border rounded-lg hover:bg-accent transition-colors group cursor-pointer ${
+                                answers[currentQuestion.id]?.[0] === idx 
+                                ? 'border-primary bg-accent/50 ring-1 ring-primary' 
+                                : ''
+                            }`}
+                        >
+                            <div className="flex items-center justify-center pl-4">
+                                <RadioGroupItem 
+                                    value={idx.toString()} 
+                                    id={`q${currentIndex}-opt${idx}`} 
+                                />
+                            </div>
+                            <Label 
+                                htmlFor={`q${currentIndex}-opt${idx}`} 
+                                className="flex-1 cursor-pointer p-4 text-base font-normal leading-relaxed"
+                                onClick={(e) => e.preventDefault()}
+                            >
+                                {opt}
+                            </Label>
                         </div>
                     ))}
                 </RadioGroup>
@@ -182,17 +241,25 @@ export function FinalExamRunner({ courseId, onComplete, onCancel }: FinalExamRun
                     onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
                     disabled={currentIndex === 0}
                 >
-                    Previous
+                    Előző
                 </Button>
 
                 {currentIndex < examData?.questions.length - 1 ? (
-                    <Button onClick={() => setCurrentIndex(prev => prev + 1)}>
-                        Next
+                    <Button 
+                        onClick={() => setCurrentIndex(prev => prev + 1)}
+                        disabled={answers[currentQuestion.id] === undefined}
+                    >
+                        Következő
                     </Button>
                 ) : (
-                    <Button onClick={handleSubmit} disabled={submitting} variant="default" className="w-32">
+                    <Button 
+                        onClick={handleSubmit} 
+                        disabled={submitting || answers[currentQuestion.id] === undefined} 
+                        variant="default" 
+                        className="w-32"
+                    >
                         {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Submit
+                        Beküldés
                     </Button>
                 )}
             </CardFooter>

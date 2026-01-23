@@ -2,7 +2,8 @@ import mongoose, { Schema, model, models } from 'mongoose';
 
 const ExamResultSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  courseId: { type: Schema.Types.ObjectId, ref: 'Course' }, // Optional if it's a general practice
+  courseId: { type: Schema.Types.ObjectId, ref: 'Course' }, 
+  moduleId: { type: Schema.Types.ObjectId, ref: 'Module' }, // Added for module-specific exams
   score: { type: Number, required: true },
   totalQuestions: { type: Number, required: true },
   answers: [{

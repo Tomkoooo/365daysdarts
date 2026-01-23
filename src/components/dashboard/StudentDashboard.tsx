@@ -26,14 +26,6 @@ export default function StudentDashboard() {
       setLoading(false)
     }
   }
-
-  const calculateProgress = (course: any) => {
-    // Simple progress calculation based on completed pages
-    // In a real scenario, you'd count total pages vs completed
-    const completed = course.progress?.completedPages?.length || 0
-    return Math.min(completed * 10, 100) // Rough estimate
-  }
-
   return (
     <div className="container mx-auto p-8 space-y-8">
       <div className="flex justify-between items-center">
@@ -62,7 +54,7 @@ export default function StudentDashboard() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.map((course) => {
-            const progress = calculateProgress(course)
+            const progress = course.progress?.percent || 0
             const lastViewed = course.progress?.lastViewedAt 
               ? new Date(course.progress.lastViewedAt).toLocaleDateString('hu-HU')
               : 'Még nem kezdted el'
@@ -96,23 +88,32 @@ export default function StudentDashboard() {
                     <span>Utoljára: {lastViewed}</span>
                   </div>
 
-                  <div className="flex gap-2">
-                    {course.progress?.lastViewedPage ? (
-                      <Button asChild className="flex-1">
-                        <Link href={`/courses/${course._id}/learn`}>
-                          <BookOpen className="mr-2 h-4 w-4" />
-                          Folytatás
-                        </Link>
-                      </Button>
-                    ) : (
-                      <Button asChild className="flex-1">
-                        <Link href={`/courses/${course._id}/learn`}>
-                          <BookOpen className="mr-2 h-4 w-4" />
-                          Kezdés
-                        </Link>
-                      </Button>
-                    )}
-                  </div>
+                  {!course.progress?.courseCompleted && (
+                    <div className="flex gap-2">
+                      {course.progress?.lastViewedPage ? (
+                        <Button asChild className="flex-1">
+                          <Link href={`/courses/${course._id}/learn`}>
+                            <BookOpen className="mr-2 h-4 w-4" />
+                            Folytatás
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button asChild className="flex-1">
+                          <Link href={`/courses/${course._id}/learn`}>
+                            <BookOpen className="mr-2 h-4 w-4" />
+                            Kezdés
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {course.progress?.courseCompleted && (
+                    <div className="flex items-center justify-center gap-2 p-3 bg-green-50 dark:bg-green-950 rounded-md border border-green-200 dark:border-green-800">
+                      <Trophy className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <span className="font-semibold text-green-700 dark:text-green-300">Teljesítve</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )

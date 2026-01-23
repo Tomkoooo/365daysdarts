@@ -13,7 +13,8 @@ const CourseSchema = new Schema({
   finalExamSettings: {
       passingScore: { type: Number, default: 75 },
       questionCount: { type: Number, default: 20 },
-      maxRetries: { type: Number, default: 3 }, // 0 or null could mean infinite, but user asked for retry limit
+      timeLimit: { type: Number, default: 60 }, // in minutes
+      maxRetries: { type: Number, default: 3 }, 
   }
 }, { timestamps: true });
 
