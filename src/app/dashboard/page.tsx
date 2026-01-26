@@ -1,7 +1,6 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { Navbar } from "@/components/layout/Navbar"
 import StudentDashboard from "@/components/dashboard/StudentDashboard"
 import LecturerDashboard from "@/components/dashboard/LecturerDashboard"
 import AdminDashboard from "@/components/dashboard/AdminDashboard"
@@ -22,7 +21,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-       <Navbar />
        <main className="flex-1 bg-muted/10">
          {role === 'admin' && <AdminDashboard />}
          {role === 'business' && <BusinessDashboard />}

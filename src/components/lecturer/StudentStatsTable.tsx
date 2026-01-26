@@ -28,15 +28,15 @@ export function StudentStatsTable() {
     }
 
     async function handleGrantRetry(studentId: string, courseId: string) {
-        if (!confirm("Are you sure you want to grant an extra final exam attempt to this student?")) return;
+        if (!confirm("Biztosan extra záróvizsga kísérletet szeretne adni ennek a tanulónak?")) return;
         
         try {
             await grantExtraRetry(studentId, courseId);
-            alert("Extra attempt granted successfully.");
+            alert("Sikeresen megadva az extra kísérlet.");
             loadStats(); // Refresh to potentially update view (though attempts count won't decrease, logic changes)
         } catch (e) {
             console.error("Failed to grant retry", e);
-            alert("Failed to grant retry");
+            alert("Nem sikerült extra kísérletet adni.");
         }
     }
 
@@ -45,9 +45,9 @@ export function StudentStatsTable() {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium">Student Performance</h3>
+                <h3 className="text-lg font-medium">Tanulói Teljesítmény</h3>
                 <Button size="sm" variant="outline" onClick={loadStats}>
-                    <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+                    <RefreshCw className="h-4 w-4 mr-2" /> Frissítés
                 </Button>
             </div>
 
@@ -55,19 +55,19 @@ export function StudentStatsTable() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Student Name</TableHead>
+                            <TableHead>Tanuló Neve</TableHead>
                             <TableHead>Email</TableHead>
-                            <TableHead className="text-center">Modules Passed</TableHead>
-                            <TableHead className="text-center">Final Exam</TableHead>
-                            <TableHead className="text-center">Attempts</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                            <TableHead className="text-center">Teljesített Modulok</TableHead>
+                            <TableHead className="text-center">Záróvizsga</TableHead>
+                            <TableHead className="text-center">Kísérletek</TableHead>
+                            <TableHead className="text-right">Műveletek</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {stats.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
-                                    No student data found.
+                                    Nem található tanulói adat.
                                 </TableCell>
                             </TableRow>
                         )}
@@ -84,7 +84,7 @@ export function StudentStatsTable() {
                                             {student.finalExamScore}%
                                         </Badge>
                                     ) : (
-                                        <span className="text-muted-foreground text-xs">Not taken</span>
+                                        <span className="text-muted-foreground text-xs">Nincs kitöltve</span>
                                     )}
                                 </TableCell>
                                 <TableCell className="text-center">{student.finalExamAttempts}</TableCell>
@@ -96,12 +96,12 @@ export function StudentStatsTable() {
                                                 variant="outline" 
                                                 className="h-8 text-xs border-dashed"
                                                 onClick={() => handleGrantRetry(student.id, student.courseId)}
-                                                title="Grant Extra Attempt"
+                                                title="Extra kísérlet megadása"
                                             >
-                                                <PlusCircle className="h-3 w-3 mr-1" /> Retry
+                                                <PlusCircle className="h-3 w-3 mr-1" /> Újra
                                             </Button>
                                         )}
-                                        <Button size="sm" variant="ghost" className="h-8 text-xs">Details</Button>
+                                        <Button size="sm" variant="ghost" className="h-8 text-xs">Részletek</Button>
                                     </div>
                                 </TableCell>
                             </TableRow>

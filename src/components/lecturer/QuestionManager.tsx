@@ -42,7 +42,7 @@ export function QuestionManager({ module, onClose }: QuestionManagerProps) {
 
     async function handleCreateQuestion() {
         if (!newQuestionText || options.some(o => !o)) {
-            alert("Please fill in all fields")
+            alert("Kérjük, töltsön ki minden mezőt!")
             return
         }
 
@@ -59,20 +59,20 @@ export function QuestionManager({ module, onClose }: QuestionManagerProps) {
             loadQuestions()
         } catch (e) {
             console.error(e)
-            alert("Failed to create question")
+            alert("A kérdés létrehozása sikertelen.")
         } finally {
             setSubmitting(false)
         }
     }
 
     async function handleDeleteQuestion(id: string) {
-        if (!confirm("Are you sure?")) return
+        if (!confirm("Biztos benne?")) return
         try {
             await deleteQuestion(id)
             loadQuestions()
         } catch (e) {
             console.error(e)
-            alert("Failed to delete")
+            alert("A törlés sikertelen.")
         }
     }
 
@@ -80,24 +80,24 @@ export function QuestionManager({ module, onClose }: QuestionManagerProps) {
         <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
                 <DialogHeader>
-                    <DialogTitle>Manage Question Pool: {module.title}</DialogTitle>
+                    <DialogTitle>Kérdésbank Kezelése: {module.title}</DialogTitle>
                     <DialogDescription>
-                        Add questions for this module's exam and final exam pool.
+                        Adjon hozzá kérdéseket a modulzáró- és a záróvizsga kérdéssorához.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto p-1 space-y-6">
                     {/* Add Question Form */}
                     <div className="bg-muted/30 p-4 rounded-lg space-y-4 border">
-                        <Label>New Question</Label>
+                        <Label>Új Kérdés</Label>
                         <Textarea 
-                            placeholder="Enter question text..." 
+                            placeholder="Írja be a kérdés szövegét..." 
                             value={newQuestionText} 
                             onChange={(e) => setNewQuestionText(e.target.value)} 
                         />
                         
                         <div className="space-y-2">
-                            <Label>Options</Label>
+                            <Label>Opciók</Label>
                             {options.map((opt, idx) => (
                                 <div key={idx} className="flex items-center gap-2">
                                      <div 
@@ -107,7 +107,7 @@ export function QuestionManager({ module, onClose }: QuestionManagerProps) {
                                          {correctOption === idx && <div className="w-2 h-2 bg-white rounded-full" />}
                                      </div>
                                      <Input 
-                                        placeholder={`Option ${String.fromCharCode(65 + idx)}`} 
+                                        placeholder={`${String.fromCharCode(65 + idx)}. opció`} 
                                         value={opt}
                                         onChange={(e) => {
                                             const newOpts = [...options]
@@ -121,13 +121,13 @@ export function QuestionManager({ module, onClose }: QuestionManagerProps) {
 
                         <Button onClick={handleCreateQuestion} disabled={submitting} className="w-full">
                             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Add Question
+                            Kérdés Hozzáadása
                         </Button>
                     </div>
 
                     {/* Question List */}
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm text-muted-foreground">Existing Questions ({questions.length})</h4>
+                        <h4 className="font-semibold text-sm text-muted-foreground">Meglévő Kérdések ({questions.length})</h4>
                         {loading ? <Loader2 className="h-6 w-6 animate-spin mx-auto" /> : (
                             <div className="space-y-2">
                                 {questions.map((q) => (
@@ -135,7 +135,7 @@ export function QuestionManager({ module, onClose }: QuestionManagerProps) {
                                         <div>
                                             <p className="font-medium text-sm">{q.text}</p>
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                Correct: {q.options[q.correctOptions[0]] || q.options[q.correctOption]}
+                                                Helyes: {q.options[q.correctOptions[0]] || q.options[q.correctOption]}
                                             </p>
                                         </div>
                                         <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q._id)}>
@@ -143,14 +143,14 @@ export function QuestionManager({ module, onClose }: QuestionManagerProps) {
                                         </Button>
                                     </div>
                                 ))}
-                                {questions.length === 0 && <p className="text-sm text-muted-foreground italic text-center">No questions in this pool yet.</p>}
+                                {questions.length === 0 && <p className="text-sm text-muted-foreground italic text-center">Még nincsenek kérdések ebben a kategóriában.</p>}
                             </div>
                         )}
                     </div>
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Close</Button>
+                    <Button variant="outline" onClick={onClose}>Bezárás</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

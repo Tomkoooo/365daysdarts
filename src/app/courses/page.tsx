@@ -13,9 +13,9 @@ export default async function CoursesPage() {
   return (
     <div className="container mx-auto p-8 space-y-8">
       <div className="space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">Available Courses</h1>
+        <h1 className="text-4xl font-bold tracking-tight">Elérhető Kurzusok</h1>
         <p className="text-xl text-muted-foreground">
-          Expand your skills with our comprehensive dart training modules.
+          Fejleszd tudásod átfogó darts edzési moduljainkkal.
         </p>
       </div>
 
@@ -36,7 +36,7 @@ export default async function CoursesPage() {
               )}
               {course.price === 0 && (
                 <Badge className="absolute top-2 right-2 bg-green-500 hover:bg-green-600">
-                  Free
+                  Ingyenes
                 </Badge>
               )}
             </div>
@@ -58,7 +58,7 @@ export default async function CoursesPage() {
             <CardFooter className="pt-4 border-t bg-muted/5">
               <Button asChild className="w-full">
                 <Link href={`/courses/${course._id}/learn`}>
-                  Start Learning
+                  Tanulás Megkezdése
                 </Link>
               </Button>
             </CardFooter>
@@ -67,8 +67,8 @@ export default async function CoursesPage() {
         
         {courses.length === 0 && (
             <div className="col-span-full text-center py-12 bg-muted/30 rounded-lg">
-                <h3 className="text-lg font-medium">No courses available yet</h3>
-                <p className="text-muted-foreground">Check back soon for new content.</p>
+                <h3 className="text-lg font-medium">Még nincsenek elérhető kurzusok</h3>
+                <p className="text-muted-foreground">Nézz vissza később az új tartalmakért.</p>
             </div>
         )}
       </div>

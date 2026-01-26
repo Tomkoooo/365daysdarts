@@ -52,7 +52,7 @@ export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>
             
             quillInstance = new Quill(editorRef.current, {
                 theme: 'snow',
-                placeholder: placeholder || 'Write something...',
+                placeholder: placeholder || 'Írjon be valamit...',
                 modules: {
                     toolbar: {
                         container: toolbarRef.current,

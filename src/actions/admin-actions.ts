@@ -30,3 +30,16 @@ export async function updateUserRole(userId: string, newRole: string) {
   revalidatePath("/dashboard");
   return { success: true };
 }
+
+export async function updateSubscriptionStatus(userId: string, newStatus: string) {
+  const session = await getAuthSession();
+
+  if (session?.user?.role !== "admin") {
+    throw new Error("Unauthorized");
+  }
+
+  await connectDB();
+  await User.findByIdAndUpdate(userId, { subscriptionStatus: newStatus });
+  revalidatePath("/dashboard");
+  return { success: true };
+}

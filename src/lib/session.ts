@@ -31,7 +31,8 @@ export async function getAuthSession() {
         email: devUser.email,
         image: devUser.image || "",
         id: devUser._id.toString(),
-        role: devUser.role as UserRole
+        role: devUser.role as UserRole,
+        subscriptionStatus: devUser.subscriptionStatus || "active"
       },
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     }

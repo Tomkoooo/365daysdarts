@@ -254,14 +254,14 @@ export default function CoursePlayerClient({
           {/* 3. Footer / Navigation Buttons */}
           <div className="h-16 border-t bg-background flex items-center justify-between px-6 flex-shrink-0 z-10">
               {viewingMode === 'page' && (
-                  <>
+                   <>
                     <Button 
                         variant="ghost" 
                         disabled={!prevPage}
                         onClick={() => prevPage && handleSelect(prevPage._id)}
                         className="gap-2"
                     >
-                        <ChevronLeft className="h-4 w-4" /> Previous
+                        <ChevronLeft className="h-4 w-4" /> Előző
                     </Button>
 
                     <div className="hidden md:block text-sm text-muted-foreground">
@@ -273,7 +273,7 @@ export default function CoursePlayerClient({
                         onClick={() => nextPage && handleSelect(nextPage._id)}
                         className="gap-2"
                     >
-                        Next <ChevronRight className="h-4 w-4" />
+                        Következő <ChevronRight className="h-4 w-4" />
                     </Button>
                   </>
               )}

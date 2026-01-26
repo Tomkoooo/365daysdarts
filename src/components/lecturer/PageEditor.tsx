@@ -107,7 +107,7 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                      const numPages = pdf.numPages;
 
                      if (numPages > 1) {
-                         if (confirm(`This PDF has ${numPages} pages. Do you want to create separate slides for each page? (Current page will be Page 1)`)) {
+                         if (confirm(`Ennek a PDF-nek ${numPages} oldala van. Szeretne külön oldalakat létrehozni minden oldalhoz? (A jelenlegi oldal lesz az 1. oldal)`)) {
                              const { createPageBatch, updatePage } = await import("@/actions/course-actions");
                              
                              // 1. Update ONLY the mediaUrl and pdf metadata for CURRENT page (Page 1)
@@ -119,7 +119,7 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                              const newPages = [];
                              for (let i = 2; i <= numPages; i++) {
                                  newPages.push({
-                                     title: `${title} - Part ${i}`,
+                                     title: `${title} - ${i}. rész`,
                                      type: 'pdf',
                                      mediaUrl: data.url,
                                      pdfPageIndex: i, // 1-based index or 0-based? Let's use 1-based for logic, 0 for internal? PDFJS uses 1.
@@ -147,7 +147,7 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                                  pdfTotalPages: numPages 
                              });
                              
-                             alert(`Created ${numPages - 1} additional pages from this PDF!`);
+                             alert(`Létrehozva ${numPages - 1} további oldal a PDF-ből!`);
                              onSave(); // Close editor to refresh details
                          }
                      }
@@ -186,26 +186,26 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
         <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
                 <DialogHeader>
-                    <DialogTitle>Edit Page Content</DialogTitle>
+                    <DialogTitle>Oldal Tartalmának Szerkesztése</DialogTitle>
                 </DialogHeader>
                 
                 <div className="space-y-4 flex-1 overflow-y-auto p-1">
                     <div className="space-y-2">
-                        <Label htmlFor="title">Page Title</Label>
+                        <Label htmlFor="title">Oldal Címe</Label>
                         <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
                     </div>
 
                     <div className="hidden">
-                        <Label htmlFor="pageType">Page Type</Label>
+                        <Label htmlFor="pageType">Oldal Típusa</Label>
                         <Select value={pageType} onValueChange={(val: any) => setPageType(val)}>
                             <SelectTrigger id="pageType">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="text">Text Content</SelectItem>
-                                <SelectItem value="video">Video</SelectItem>
-                                <SelectItem value="image">Image</SelectItem>
-                                <SelectItem value="pdf">PDF Slide</SelectItem>
+                                <SelectItem value="text">Szöveges Tartalom</SelectItem>
+                                <SelectItem value="video">Videó</SelectItem>
+                                <SelectItem value="image">Kép</SelectItem>
+                                <SelectItem value="pdf">PDF Dia</SelectItem>
                             </SelectContent>
                         </Select>
                      </div>
@@ -215,26 +215,26 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                         {pageType === 'text' ? (
                             <div className="flex-1 flex flex-col gap-2 border rounded-md p-4 bg-background shadow-sm overflow-hidden">
                                 <div className="flex justify-between items-center flex-wrap gap-2 pb-2 border-b">
-                                     <Label className="text-sm font-semibold">Content Editor</Label>
+                                     <Label className="text-sm font-semibold">Tartalomszerkesztő</Label>
                                      <div className="flex items-center gap-2">
                                         <div className="flex items-center gap-2 border rounded px-2 py-1 bg-muted/50">
-                                            <Label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Image Width:</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Kép Szélessége:</Label>
                                             <select 
                                                 className="h-6 text-xs bg-transparent border-none focus:ring-0 cursor-pointer font-medium"
                                                 value={mediaWidth}
                                                 onChange={(e) => setMediaWidth(e.target.value)}
                                             >
-                                                <option value="100%">Full Width (100%)</option>
-                                                <option value="75%">Large (75%)</option>
-                                                <option value="50%">Medium (50%)</option>
-                                                <option value="25%">Small (25%)</option>
-                                                <option value="300px">Fixed 300px</option>
-                                                <option value="500px">Fixed 500px</option>
+                                                <option value="100%">Teljes Szélesség (100%)</option>
+                                                <option value="75%">Nagy (75%)</option>
+                                                <option value="50%">Közepes (50%)</option>
+                                                <option value="25%">Kicsi (25%)</option>
+                                                <option value="300px">Fix 300px</option>
+                                                <option value="500px">Fix 500px</option>
                                             </select>
                                         </div>
 
                                         <Label htmlFor="file-upload" className="cursor-pointer text-xs flex items-center gap-1 bg-secondary text-secondary-foreground hover:bg-secondary/80 px-3 py-1.5 rounded transition-colors font-medium border shadow-sm">
-                                             <ImageIcon className="h-3 w-3" /> Insert Image
+                                             <ImageIcon className="h-3 w-3" /> Kép Beszúrása
                                         </Label>
                                         <Input 
                                             id="file-upload" 
@@ -256,34 +256,34 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex-1 flex flex-col gap-4 border rounded-md p-6 bg-muted/10">
+                             <div className="flex-1 flex flex-col gap-4 border rounded-md p-6 bg-muted/10">
                                  <div className="space-y-2">
                                     <Label className="text-lg font-semibold capitalize flex items-center gap-2">
                                         {pageType === 'video' && <Video className="h-5 w-5" />}
                                         {pageType === 'pdf' && <BookOpen className="h-5 w-5" />}
-                                        {pageType} Content
+                                        {pageType === 'video' ? 'Videó' : pageType === 'image' ? 'Kép' : 'PDF'} Tartalom
                                     </Label>
                                     <p className="text-sm text-muted-foreground">
-                                        {pageType === 'video' ? 'Upload an MP4 video file. This will be the only content on this page.' : 
-                                         pageType === 'pdf' ? 'Upload a PDF file. You will be prompted to split it into individual slides.' : 
-                                         'Upload media content.'}
+                                        {pageType === 'video' ? 'Töltsön fel egy MP4 videófájlt. Ez lesz az oldal egyetlen tartalma.' : 
+                                         pageType === 'pdf' ? 'Töltsön fel egy PDF fájlt. Lehetősége lesz oldalak szerint felosztani.' : 
+                                         'Média tartalom feltöltése.'}
                                     </p>
                                 </div>
                                 <Label htmlFor="mediaUrl">
-                                    {pageType === 'video' && 'Video URL'}
-                                    {pageType === 'image' && 'Image URL'}
+                                    {pageType === 'video' && 'Videó URL'}
+                                    {pageType === 'image' && 'Kép URL'}
                                     {pageType === 'pdf' && 'PDF URL'}
                                 </Label>
                                 <Input 
                                     id="mediaUrl" 
                                     value={mediaUrl} 
                                     onChange={(e) => setMediaUrl(e.target.value)}
-                                    placeholder={`Enter ${pageType} URL or upload a file`}
+                                    placeholder={`Írja be a ${pageType === 'video' ? 'videó' : pageType === 'image' ? 'kép' : 'PDF'} URL-jét vagy töltsön fel egy fájlt`}
                                 />
 
                                 <div className="flex items-center gap-2">
                                     <Label htmlFor="media-upload" className="cursor-pointer flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded transition-colors">
-                                        <Upload className="h-4 w-4" /> Upload {pageType.charAt(0).toUpperCase() + pageType.slice(1)}
+                                        <Upload className="h-4 w-4" /> {pageType === 'video' ? 'Videó' : pageType === 'image' ? 'Kép' : 'PDF'} Feltöltése
                                     </Label>
                                     <Input 
                                         id="media-upload" 
@@ -298,16 +298,16 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
 
                                 {mediaUrl && (
                                     <div className="border rounded-lg p-4 bg-muted/50">
-                                        <Label className="text-sm text-muted-foreground mb-2 block">Preview:</Label>
+                                        <Label className="text-sm text-muted-foreground mb-2 block">Előnézet:</Label>
                                         {pageType === 'video' && (
                                             <video src={mediaUrl} controls className="w-full max-h-64 rounded" />
                                         )}
                                         {pageType === 'image' && (
-                                            <img src={mediaUrl} alt="Preview" className="w-full max-h-64 object-contain rounded" />
+                                            <img src={mediaUrl} alt="Előnézet" className="w-full max-h-64 object-contain rounded" />
                                         )}
                                         {pageType === 'pdf' && (
                                             <div className="text-sm text-muted-foreground">
-                                                PDF: {mediaUrl}
+                                                PDF fájl: {mediaUrl}
                                             </div>
                                         )}
                                     </div>
@@ -317,10 +317,10 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button variant="outline" onClick={onClose}>Mégse</Button>
                     <Button onClick={handleSave} disabled={loading}>
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save Changes
+                        Módosítások Mentése
                     </Button>
                 </DialogFooter>
             </DialogContent>

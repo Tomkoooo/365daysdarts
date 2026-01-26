@@ -15,6 +15,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id;
         session.user.role = token.role;
+        session.user.subscriptionStatus = token.subscriptionStatus;
       }
       return session;
     },
@@ -22,6 +23,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.subscriptionStatus = user.subscriptionStatus;
       }
       return token;
     },
@@ -40,9 +42,11 @@ export const authOptions: NextAuthOptions = {
             // Attach role/id to user object for the jwt callback which runs after this
             user.role = newUser.role;
             user.id = newUser._id.toString();
+            user.subscriptionStatus = newUser.subscriptionStatus;
           } else {
             user.role = existingUser.role;
             user.id = existingUser._id.toString();
+            user.subscriptionStatus = existingUser.subscriptionStatus;
           }
           return true;
         } catch (error) {

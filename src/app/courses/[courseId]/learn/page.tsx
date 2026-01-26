@@ -1,10 +1,18 @@
 import { getCourseWithContent, enrollInCourse, getStudentProgress } from "@/actions/course-actions";
 import CoursePlayerClient from "@/components/course/CoursePlayerClient";
 import { redirect } from "next/navigation";
+import { getAuthSession } from "@/lib/session";
 
 export default async function CourseLearnPage({ params }: { params: Promise<{ courseId: string }> }) {
   const { courseId } = await params;
   
+  const session = await getAuthSession();
+  const hasAccess = session?.user?.subscriptionStatus === 'active' || session?.user?.role === 'admin';
+
+  if (!hasAccess) {
+    redirect("/dashboard");
+  }
+
   // 1. Enroll user if not already (initializes progress)
   await enrollInCourse(courseId);
 

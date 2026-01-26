@@ -1,5 +1,6 @@
 "use client"
 
+import { useSession } from "next-auth/react"
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,6 +27,35 @@ export default function StudentDashboard() {
       setLoading(false)
     }
   }
+
+  const { data: session } = useSession()
+  const hasAccess = session?.user?.subscriptionStatus === 'active' || session?.user?.role === 'admin'
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="container mx-auto p-8 flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+        <Card className="max-w-md w-full border-primary/20 bg-primary/5">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold">Feldolgozás alatt...</CardTitle>
+            <CardDescription className="text-lg mt-4">
+              Jelenleg nem elérhető várjon amíg feldolgozzuk a jelentkezését.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center pb-8">
+            <Clock className="h-12 w-12 text-primary animate-pulse" />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
   return (
     <div className="container mx-auto p-8 space-y-8">
       <div className="flex justify-between items-center">
@@ -35,11 +65,7 @@ export default function StudentDashboard() {
         </Button>
       </div>
       
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      ) : courses.length === 0 ? (
+      {courses.length === 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>Nincs aktív kurzus</CardTitle>

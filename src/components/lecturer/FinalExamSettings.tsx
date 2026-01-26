@@ -33,7 +33,7 @@ export function FinalExamSettings({ course, onClose, onSave }: FinalExamSettings
             onSave()
         } catch (e) {
             console.error("Failed to save final exam settings", e)
-            alert("Failed to save settings")
+            alert("A beállítások mentése sikertelen.")
         } finally {
             setLoading(false)
         }
@@ -43,16 +43,16 @@ export function FinalExamSettings({ course, onClose, onSave }: FinalExamSettings
         <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Final Exam Settings</DialogTitle>
+                    <DialogTitle>Záróvizsga Beállításai</DialogTitle>
                     <DialogDescription>
-                        Configure the requirements for the final course exam.
+                        Konfigurálja a kurzus záróvizsgájának követelményeit.
                     </DialogDescription>
                 </DialogHeader>
                 
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="passingScore" className="text-right">
-                            Passing Score (%)
+                            Sikeres Pontszám (%)
                         </Label>
                         <Input
                             id="passingScore"
@@ -66,7 +66,7 @@ export function FinalExamSettings({ course, onClose, onSave }: FinalExamSettings
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="questionCount" className="text-right">
-                            Total Questions
+                            Összes Kérdés
                         </Label>
                         <Input
                             id="questionCount"
@@ -79,7 +79,7 @@ export function FinalExamSettings({ course, onClose, onSave }: FinalExamSettings
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="maxRetries" className="text-right">
-                            Max Retries
+                            Kísérletek Száma
                         </Label>
                         <Input
                             id="maxRetries"
@@ -93,10 +93,10 @@ export function FinalExamSettings({ course, onClose, onSave }: FinalExamSettings
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button variant="outline" onClick={onClose}>Mégse</Button>
                     <Button onClick={handleSave} disabled={loading}>
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save Settings
+                        Beállítások Mentése
                     </Button>
                 </DialogFooter>
             </DialogContent>

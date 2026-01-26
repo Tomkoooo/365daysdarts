@@ -38,15 +38,31 @@ export async function getCourseWithContent(courseId: string) {
 
   if (!course) return null;
 
+  // Security: Only allow admins/lecturers to view unpublished courses
+  if (!course.isPublished && session.user?.role !== 'admin' && session.user?.role !== 'lecturer') {
+      return null;
+  }
+
   // Convert ObjectIds to strings for serialization to client components
   return JSON.parse(JSON.stringify(course));
 }
 
-export async function getAllCourses() {
-    // Optional: Add auth check if needed
+export async function getAllCourses(onlyPublished: boolean = true) {
+    const session = await getAuthSession();
     await connectDB();
-    const courses = await Course.find({ isPublished: true })
-      .select("title description thumbnail price")
+    
+    // If onlyPublished is false, ensure user is lecturer or admin
+    if (!onlyPublished && session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
+        throw new Error("Unauthorized access to unpublished courses");
+    }
+
+    const query = onlyPublished ? { isPublished: true } : {};
+    
+    // If lecturer, they should only see their own courses when looking at unpublished
+    // (Optional: but good practice. For now I'll just follow the specific request)
+    
+    const courses = await Course.find(query)
+      .select("title description thumbnail price isPublished")
       .sort({ createdAt: -1 })
       .lean();
       
@@ -90,7 +106,7 @@ export async function createChapter(moduleId: string, title: string) {
     return JSON.parse(JSON.stringify(newChapter));
 }
 
-export async function createPage(chapterId: string, title: string, content: string = '<p>New page</p>', type: string = 'text') {
+export async function createPage(chapterId: string, title: string, content: string = '<p>Új oldal</p>', type: string = 'text') {
     await connectDB();
     const newPage = await Page.create({ title, chapterId, type, content });
     await Chapter.findByIdAndUpdate(chapterId, { $push: { pages: newPage._id } });
@@ -132,8 +148,42 @@ export async function deletePage(pageId: string) {
     // Remove from chapter
     await Chapter.findByIdAndUpdate(page.chapterId, { $pull: { pages: pageId } });
     
-    // Delete page
-    await Page.findByIdAndDelete(pageId);
+    return { success: true };
+}
+
+export async function deleteModule(moduleId: string) {
+    await connectDB();
+    const module = await Module.findById(moduleId).populate('chapters');
+    if (!module) throw new Error("Module not found");
+
+    // Cascading delete chapters and their pages
+    for (const chapter of module.chapters) {
+        await Page.deleteMany({ chapterId: chapter._id });
+        await Chapter.findByIdAndDelete(chapter._id);
+    }
+
+    // Remove from course
+    await Course.findByIdAndUpdate(module.courseId, { $pull: { modules: moduleId } });
+    
+    // Delete module
+    await Module.findByIdAndDelete(moduleId);
+    
+    return { success: true };
+}
+
+export async function deleteChapter(chapterId: string) {
+    await connectDB();
+    const chapter = await Chapter.findById(chapterId);
+    if (!chapter) throw new Error("Chapter not found");
+
+    // Cascading delete pages
+    await Page.deleteMany({ chapterId: chapterId });
+
+    // Remove from module
+    await Module.findByIdAndUpdate(chapter.moduleId, { $pull: { chapters: chapterId } });
+    
+    // Delete chapter
+    await Chapter.findByIdAndDelete(chapterId);
     
     return { success: true };
 }
@@ -245,6 +295,12 @@ export async function enrollInCourse(courseId: string) {
 
     const user = await User.findById(userId);
     if (!user) return { success: false };
+
+    // Security: Check if course is published
+    const course = await Course.findById(courseId);
+    if (!course?.isPublished && session.user?.role !== 'admin') {
+        return { success: false, error: "Course not published" };
+    }
 
     if (!user.progress) user.progress = new Map();
 

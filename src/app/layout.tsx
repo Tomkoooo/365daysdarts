@@ -6,6 +6,7 @@ import AuthProvider from "@/components/providers/AuthProvider";
 import PrivacyWrapper from "@/components/layout/PrivacyWrapper";
 import { UserRole } from "@/models/User";
 import { cookies } from "next/headers";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,9 +20,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  icons: {
+    icon: "/logo.svg",
+  },
   title: "365daysdarts",
   description: "Secure, efficient, and comprehensive Kressz learning.",
 };
+
+import { Footer } from "@/components/layout/Footer";
+import { Navbar } from "@/components/layout/Navbar";
+
+// ...
 
 export default async function RootLayout({
   children,
@@ -31,14 +40,17 @@ export default async function RootLayout({
   const session = await getAuthSession();
 
   return (
-    <html lang="en">
+    <html lang="en" className="dark h-full">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground flex flex-col min-h-screen`}
       >
         <AuthProvider session={session}>
           <PrivacyWrapper>
+            <Navbar />
             {children}
+            <Footer />
             {process.env.DEV_MODE === "true" && <DevModeRoleSwitcher />}
+            <Toaster position="top-center" expand={true} richColors />
           </PrivacyWrapper>
         </AuthProvider>
       </body>

@@ -18,7 +18,7 @@ export default function LecturerDashboard() {
       try {
         const [resultsData, coursesData] = await Promise.all([
              getLecturerExamResults(),
-             getAllCourses()
+             getAllCourses(false)
         ])
         setResults(resultsData)
         setCourses(coursesData)
@@ -32,16 +32,16 @@ export default function LecturerDashboard() {
   return (
     <div className="container mx-auto p-8 space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Lecturer Dashboard</h1>
+        <h1 className="text-3xl font-bold">Oktatói Irányítópult</h1>
         <Button asChild>
-          <Link href="/lecturer/courses/new">Create Course</Link>
+          <Link href="/lecturer/courses/new">Kurzus Létrehozása</Link>
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Courses</CardTitle>
+            <CardTitle className="text-sm font-medium">Összes Kurzus</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{courses.length}</div>
@@ -49,7 +49,7 @@ export default function LecturerDashboard() {
         </Card>
          <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Exam Results</CardTitle>
+            <CardTitle className="text-sm font-medium">Vizsgaeredmények</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{results.length}</div>
@@ -59,9 +59,9 @@ export default function LecturerDashboard() {
 
       <Tabs defaultValue="courses" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="courses">My Courses</TabsTrigger>
-          <TabsTrigger value="students">Student Progress</TabsTrigger>
-          <TabsTrigger value="results">Student Results</TabsTrigger>
+          <TabsTrigger value="courses">Kurzusaim</TabsTrigger>
+          <TabsTrigger value="students">Tanulók Haladása</TabsTrigger>
+          <TabsTrigger value="results">Vizsgaeredmények</TabsTrigger>
         </TabsList>
         <TabsContent value="courses" className="space-y-4">
              <Card>
@@ -69,24 +69,24 @@ export default function LecturerDashboard() {
                     <Table>
                     <TableHeader>
                         <TableRow>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
+                        <TableHead>Cím</TableHead>
+                        <TableHead>Állapot</TableHead>
+                        <TableHead>Műveletek</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {courses.length === 0 ? (
-                            <TableRow><TableCell colSpan={3} className="text-center p-8">No courses found.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={3} className="text-center p-8">Nem található kurzus.</TableCell></TableRow>
                         ) : (
                             courses.map((c) => (
                             <TableRow key={c._id}>
                                 <TableCell className="font-medium">{c.title}</TableCell>
                                 <TableCell>
-                                    {c.isPublished ? <span className="text-green-600 font-bold">Published</span> : <span className="text-gray-500">Draft</span>}
+                                    {c.isPublished ? <span className="text-green-600 font-bold">Közzétéve</span> : <span className="text-gray-500">Piszkozat</span>}
                                 </TableCell>
                                 <TableCell>
                                 <Button size="sm" variant="ghost" asChild>
-                                    <Link href={`/lecturer/courses/${c._id}/edit`}>Edit</Link>
+                                    <Link href={`/lecturer/courses/${c._id}/edit`}>Szerkesztés</Link>
                                 </Button>
                                 </TableCell>
                             </TableRow>
@@ -97,30 +97,33 @@ export default function LecturerDashboard() {
                 </CardContent>
             </Card>
         </TabsContent>
+        <TabsContent value="students" className="space-y-4">
+             <StudentStatsTable />
+        </TabsContent>
         <TabsContent value="results" className="space-y-4">
           <Card>
             <CardContent className="p-0">
                <Table>
                  <TableHeader>
                    <TableRow>
-                     <TableHead>Student</TableHead>
+                     <TableHead>Tanuló</TableHead>
                      <TableHead>Email</TableHead>
-                     <TableHead>Score</TableHead>
-                     <TableHead>Date</TableHead>
+                     <TableHead>Pontszám</TableHead>
+                     <TableHead>Dátum</TableHead>
                    </TableRow>
                  </TableHeader>
                  <TableBody>
                    {results.length === 0 ? (
                      <TableRow>
-                       <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No final exams completed yet.</TableCell>
+                       <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Még nincs befejezett záróvizsga.</TableCell>
                      </TableRow>
                    ) : (
                      results.map((r) => (
                        <TableRow key={r._id}>
-                         <TableCell className="font-medium">{r.userId?.name || "Unknown"}</TableCell>
+                         <TableCell className="font-medium">{r.userId?.name || "Ismeretlen"}</TableCell>
                          <TableCell>{r.userId?.email || "-"}</TableCell>
                          <TableCell className={r.score >= 75 ? "text-green-600 font-bold" : "text-red-600"}>{r.score}%</TableCell>
-                         <TableCell>{new Date(r.completedAt).toLocaleDateString()}</TableCell>
+                         <TableCell>{new Date(r.completedAt).toLocaleDateString('hu-HU')}</TableCell>
                        </TableRow>
                      ))
                    )}

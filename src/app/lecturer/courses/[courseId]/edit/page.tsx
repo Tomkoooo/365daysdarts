@@ -5,7 +5,7 @@ import { Navbar } from "@/components/layout/Navbar"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { getCourseWithContent, createModule, createChapter, createPage, deletePage } from "@/actions/course-actions"
+import { getCourseWithContent, createModule, createChapter, createPage, deletePage, deleteModule, deleteChapter } from "@/actions/course-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageEditor } from "@/components/lecturer/PageEditor"
 import { ModuleSettings } from "@/components/lecturer/ModuleSettings"
@@ -15,6 +15,8 @@ import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upl
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import CoursePlayerClient from "@/components/course/CoursePlayerClient"
+import { toast } from "sonner"
+import { useRef } from "react"
 
 export default function CourseEditorPage() {
   const params = useParams()
@@ -31,6 +33,10 @@ export default function CourseEditorPage() {
 
   // Quick inputs state
   const [newModuleTitle, setNewModuleTitle] = useState("")
+
+  // Deletion state for undo
+  const [hiddenIds, setHiddenIds] = useState<string[]>([])
+  const deletionTimeouts = useRef<Record<string, any>>({})
 
   useEffect(() => {
     loadCourse()
@@ -55,7 +61,7 @@ export default function CourseEditorPage() {
   }
 
   async function handleAddChapter(moduleId: string) {
-      const title = prompt("Enter Chapter Title:")
+      const title = prompt("Adja meg a fejezet címét:")
       if (!title) return
       await createChapter(moduleId, title)
       loadCourse()
@@ -74,7 +80,7 @@ export default function CourseEditorPage() {
 
 
   async function handleAddPage(chapterId: string, type: 'text' | 'video' | 'pdf' = 'text') {
-      const title = type === 'text' ? "New Text Page" : type === 'video' ? "New Video Page" : "New PDF Slide";
+      const title = type === 'text' ? "Új Szöveges Oldal" : type === 'video' ? "Új Videós Oldal" : "Új PDF Dia";
       const newPage = await createPage(chapterId, title, "", type);
       if (newPage) {
           await loadCourse(); 
@@ -85,47 +91,89 @@ export default function CourseEditorPage() {
   async function handleDeletePage(e: React.MouseEvent, page: any) {
       e.stopPropagation(); // Prevent opening editor
       
-      const isBlank = (!page.content || page.content === '<p>New page</p>' || page.content === '') && !page.mediaUrl;
+      const isBlank = (!page.content || page.content === '<p>Új oldal</p>' || page.content === '') && !page.mediaUrl;
       
       if (!isBlank) {
-          if (!confirm("This page has content. Are you sure you want to delete it?")) return;
+          if (!confirm("Ez az oldal tartalmaz adatot. Biztosan törölni szeretné?")) return;
       }
       
       await deletePage(page._id);
       loadCourse();
   }
 
-  if (loading) return <div>Loading course...</div>
-  if (!course) return <div>Course not found</div>
+  function scheduleDeletion(id: string, type: 'module' | 'chapter', title: string) {
+      const confirmMsg = type === 'module' ? `Biztosan törölni szeretné a "${title}" modult?` : `Biztosan törölni szeretné a "${title}" fejezetet?`;
+      if (!confirm(confirmMsg)) return;
+
+      // Optimistic UI
+      setHiddenIds(prev => [...prev, id]);
+
+      // Toast with undo
+      const toastId = toast.info(`${title} törölve`, {
+          description: "Visszaállítás 10 másodpercig lehetséges.",
+          duration: 10000,
+          action: {
+              label: "Mégse",
+              onClick: () => {
+                  if (deletionTimeouts.current[id]) {
+                      clearTimeout(deletionTimeouts.current[id]);
+                      delete deletionTimeouts.current[id];
+                  }
+                  setHiddenIds(prev => prev.filter(hid => hid !== id));
+                  toast.success("Művelet visszavonva");
+              }
+          }
+      });
+
+      // Schedule API call
+      deletionTimeouts.current[id] = setTimeout(async () => {
+          try {
+              if (type === 'module') {
+                  await deleteModule(id);
+              } else {
+                  await deleteChapter(id);
+              }
+              setHiddenIds(prev => prev.filter(hid => hid !== id));
+              delete deletionTimeouts.current[id];
+              loadCourse();
+          } catch (e) {
+              console.error(e);
+              toast.error("Hiba történt a törlés során");
+              setHiddenIds(prev => prev.filter(hid => hid !== id));
+          }
+      }, 10000);
+  }
+
+  if (loading) return <div>Kurzus betöltése...</div>
+  if (!course) return <div>Kurzus nem található</div>
 
   return (
     <div className="min-h-screen flex flex-col relative bg-muted/5">
-       <Navbar />
        <main className="flex-1 p-8">
          <div className="container mx-auto space-y-8">
             {/* Header ... */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                    <h1 className="text-3xl font-bold">{course.title}</h1>
-                   <p className="text-muted-foreground">Manage Curriculum</p>
+                   <p className="text-muted-foreground">Tanterv Kezelése</p>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                      <Button variant="outline" asChild>
-                         <Link href="/dashboard">Dashboard</Link>
+                         <Link href="/dashboard">Irányítópult</Link>
                      </Button>
                      
                      <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
                          <DialogTrigger asChild>
                              <Button variant="secondary">
-                                 <Eye className="mr-2 h-4 w-4" /> Preview
+                                 <Eye className="mr-2 h-4 w-4" /> Előnézet
                              </Button>
                          </DialogTrigger>
-                         <DialogContent className="max-w-[95vw] w-full h-[95vh] p-0 overflow-hidden">
+                         <DialogContent className="max-w-[95vw] w-full h-[95vh] p-0 overflow-y-auto">
                              <CoursePlayerClient course={course} previewMode={true} />
                          </DialogContent>
                      </Dialog>
 
-                     <Button>Publish</Button>
+                     <Button>Közzététel</Button>
                 </div>
             </div>
 
@@ -134,13 +182,13 @@ export default function CourseEditorPage() {
                 <div className="lg:col-span-2 space-y-6">
                     <Card className="border-none shadow-sm bg-transparent">
                         <CardHeader className="px-0 pt-0">
-                            <CardTitle className="text-xl">Modules & Content</CardTitle>
+                            <CardTitle className="text-xl">Modulok és Tartalom</CardTitle>
                         </CardHeader>
                         <CardContent className="px-0 space-y-4">
                             <p className="px-4 text-xs text-muted-foreground italic">
-                                Create modules to organize your chapters. Each module has its own question pool for exams.
+                                Hozzon létre modulokat a fejezetek rendszerezéséhez. Minden modul saját kérdésbankkal rendelkezik a vizsgákhoz.
                             </p>
-                            {course.modules?.map((module: any) => (
+                            {course.modules?.filter((m: any) => !hiddenIds.includes(m._id)).map((module: any) => (
                                 <div key={module._id} className="border rounded-lg bg-card shadow-sm overflow-hidden">
                                      {/* Module Header ... */}
                                     <div className="flex items-center justify-between p-4 bg-muted/20 border-b">
@@ -148,40 +196,46 @@ export default function CourseEditorPage() {
                                             <FolderOpen className="h-5 w-5 text-blue-600" />
                                             {module.title}
                                             <div className="flex items-center ml-2">
-                                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingModule(module)} title="Module Settings">
+                                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingModule(module)} title="Modul Beállításai">
                                                     <Settings className="h-3 w-3" />
                                                 </Button>
-                                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setViewingQuestions(module)} title="Manage Question Pool">
+                                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setViewingQuestions(module)} title="Kérdésbank Kezelése">
                                                     <FileQuestion className="h-3 w-3" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => scheduleDeletion(module._id, 'module', module.title)} title="Modul Törlése">
+                                                    <Trash2 className="h-3 w-3" />
                                                 </Button>
                                             </div>
                                         </div>
                                         <Button size="sm" variant="outline" onClick={() => handleAddChapter(module._id)} className="h-8">
-                                            <Plus className="h-3 w-3 mr-1" /> Chapter
+                                            <Plus className="h-3 w-3 mr-1" /> Fejezet
                                         </Button>
                                     </div>
                                     
                                     <div className="p-4 space-y-4">
-                                        {module.chapters?.map((chapter: any) => (
+                                        {module.chapters?.filter((c: any) => !hiddenIds.includes(c._id)).map((chapter: any) => (
                                             <div key={chapter._id} className="pl-4 border-l-2 border-muted space-y-3">
                                                  <div className="flex items-center justify-between">
                                                     <div className="font-medium flex flex-col gap-0.5">
                                                         <div className="flex items-center gap-2 text-sm text-muted-foreground uppercase tracking-wide">
                                                             {chapter.title}
+                                                            <Button size="icon" variant="ghost" className="h-5 w-5 text-destructive opacity-40 hover:opacity-100" onClick={() => scheduleDeletion(chapter._id, 'chapter', chapter.title)} title="Fejezet Törlése">
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </Button>
                                                         </div>
                                                         <span className="text-[10px] text-muted-foreground/60 italic font-light">
-                                                            Add pages using the buttons on the right
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
+                                                            Használja a jobb oldali gombokat oldal hozzáadásához
+                                                         </span>
+                                                     </div>
+                                                     <div className="flex items-center gap-1">
                                                         {/* Explicit Content Buttons */}
-                                                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => handleAddPage(chapter._id, 'text')} title="Create a page with text and images">
-                                                            <FileText className="h-3 w-3" /> Text
+                                                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => handleAddPage(chapter._id, 'text')} title="Szöveges és képi oldal létrehozása">
+                                                            <FileText className="h-3 w-3" /> Szöveg
                                                         </Button>
-                                                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => handleAddPage(chapter._id, 'video')} title="Upload a dedicated video page">
-                                                            <Video className="h-3 w-3" /> Video
+                                                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => handleAddPage(chapter._id, 'video')} title="Videós oldal létrehozása">
+                                                            <Video className="h-3 w-3" /> Videó
                                                         </Button>
-                                                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => handleAddPage(chapter._id, 'pdf')} title="Upload and split a PDF document">
+                                                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => handleAddPage(chapter._id, 'pdf')} title="PDF dokumentum feltöltése és felosztása">
                                                             <BookOpen className="h-3 w-3" /> PDF
                                                         </Button>
                                                     </div>
@@ -206,7 +260,7 @@ export default function CourseEditorPage() {
                                                                     size="icon" 
                                                                     variant="ghost" 
                                                                     className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                                    title="Delete Page"
+                                                                    title="Oldal Törlése"
                                                                     onClick={(e) => handleDeletePage(e, page)}
                                                                  >
                                                                      <Trash2 className="h-3.5 w-3.5" />
@@ -217,7 +271,7 @@ export default function CourseEditorPage() {
                                                              </div>
                                                          </div>
                                                      ))}
-                                                     {chapter.pages?.length === 0 && <div className="text-sm text-muted-foreground italic px-2">No pages. Add content above.</div>}
+                                                     {chapter.pages?.length === 0 && <div className="text-sm text-muted-foreground italic px-2">Nincsenek oldalak. Adjon hozzá tartalmat fent.</div>}
                                                  </div>
                                             </div>
                                         ))}
@@ -228,11 +282,11 @@ export default function CourseEditorPage() {
                             <div className="p-4 border rounded-lg border-dashed flex gap-2 justify-center items-center">
                                 <Input 
                                     className="max-w-xs"
-                                    placeholder="New Module Title..." 
+                                    placeholder="Új Modul Címe..." 
                                     value={newModuleTitle}
                                     onChange={(e) => setNewModuleTitle(e.target.value)}
                                 />
-                                <Button onClick={handleAddModule}>Add Module</Button>
+                                <Button onClick={handleAddModule}>Modul Hozzáadása</Button>
                             </div>
                         </CardContent>
                     </Card>
@@ -241,10 +295,10 @@ export default function CourseEditorPage() {
                 {/* Sidebar Settings */}
                 <div className="space-y-6">
                     <Card>
-                        <CardHeader><CardTitle>Course Settings</CardTitle></CardHeader>
+                        <CardHeader><CardTitle>Kurzus Beállításai</CardTitle></CardHeader>
                         <CardContent>
                              <Button variant="outline" className="w-full justify-start" onClick={() => setEditingFinalExam(true)}>
-                                <GraduationCap className="mr-2 h-4 w-4" /> Final Exam
+                                <GraduationCap className="mr-2 h-4 w-4" /> Záróvizsga
                             </Button>
                         </CardContent>
                     </Card>

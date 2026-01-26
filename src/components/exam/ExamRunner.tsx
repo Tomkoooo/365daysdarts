@@ -62,13 +62,13 @@ export function ExamRunner({ questions, onFinish, isPractice = false }: { questi
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-8">
       <div className="flex justify-between items-center text-sm text-muted-foreground">
-        <span>Question {currentQuestionIndex + 1} of {questions.length}</span>
-        <span>Progress: {Math.round(((currentQuestionIndex) / questions.length) * 100)}%</span>
+        <span>Kérdés {currentQuestionIndex + 1} / {questions.length}</span>
+        <span>Haladás: {Math.round(((currentQuestionIndex) / questions.length) * 100)}%</span>
       </div>
       
       <div className="space-y-6">
         <h2 className="text-xl font-semibold leading-relaxed">{currentQuestion.text}</h2>
-        <p className="text-sm text-muted-foreground">Select all that apply.</p>
+        <p className="text-sm text-muted-foreground">Válassza ki az összes helyes választ!</p>
         
         <div className="space-y-4">
           {currentQuestion.options.map((option, idx) => {
@@ -102,8 +102,8 @@ export function ExamRunner({ questions, onFinish, isPractice = false }: { questi
         {showFeedback && (
             <div className={`p-4 rounded-md ${currentQuestion.correctOptions?.sort().toString() === currentSelected.sort().toString() ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                 {currentQuestion.correctOptions?.sort().toString() === currentSelected.sort().toString() 
-                    ? "Correct! Well done." 
-                    : "Incorrect. Please review the correct answers highlighted above."}
+                    ? "Helyes! Szép munka." 
+                    : "Helytelen. Kérjük, nézze át a fent kiemelt helyes válaszokat."}
             </div>
         )}
       </div>
@@ -111,8 +111,8 @@ export function ExamRunner({ questions, onFinish, isPractice = false }: { questi
       <div className="flex justify-end pt-4">
         <Button onClick={handleNext} disabled={currentSelected.length === 0} size="lg">
           {showFeedback || !isPractice 
-              ? (isLastQuestion ? "Finish Exam" : "Next Question")
-              : "Check Answer"
+              ? (isLastQuestion ? "Vizsga Befejezése" : "Következő Kérdés")
+              : "Ellenőrzés"
           }
           {(showFeedback || !isPractice) && !isLastQuestion && <ArrowRight className="ml-2 w-4 h-4" />}
         </Button>

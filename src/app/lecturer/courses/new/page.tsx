@@ -31,7 +31,7 @@ export default function NewCoursePage() {
         router.push(`/lecturer/courses/${res.id}/edit`)
     } catch (error) {
         console.error("Failed to create course", error)
-        alert("Something went wrong.")
+        alert("Valami hiba történt.")
     } finally {
         setLoading(false)
     }
@@ -43,30 +43,30 @@ export default function NewCoursePage() {
        <main className="flex-1 bg-muted/10 p-8 flex justify-center">
          <Card className="max-w-2xl w-full h-fit">
            <CardHeader>
-             <CardTitle className="text-2xl">Create New Course</CardTitle>
+             <CardTitle className="text-2xl">Új Kurzus Létrehozása</CardTitle>
            </CardHeader>
            <CardContent>
              <form onSubmit={onSubmit} className="space-y-6">
                 <div className="space-y-2">
-                    <Label htmlFor="title">Course Title</Label>
-                    <Input id="title" name="title" required placeholder="e.g. Advanced Defensive Driving" />
+                    <Label htmlFor="title">Kurzus Címe</Label>
+                    <Input id="title" name="title" required placeholder="pl. Haladó darts technika" />
                 </div>
                 
                 <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea id="description" name="description" required placeholder="What will students learn?" />
+                    <Label htmlFor="description">Leírás</Label>
+                    <Textarea id="description" name="description" required placeholder="Mit fognak tanulni a hallgatók?" />
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="imageUrl">Thumbnail URL</Label>
+                    <Label htmlFor="imageUrl">Borítókép URL</Label>
                     <Input id="imageUrl" name="imageUrl" placeholder="https://..." />
                 </div>
 
                 <div className="flex justify-end gap-4 pt-4">
-                    <Button type="button" variant="ghost" onClick={() => router.back()}>Cancel</Button>
+                    <Button type="button" variant="ghost" onClick={() => router.back()}>Mégse</Button>
                     <Button type="submit" disabled={loading}>
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Create Course
+                        Kurzus Létrehozása
                     </Button>
                 </div>
              </form>
