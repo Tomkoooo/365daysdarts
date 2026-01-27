@@ -1,19 +1,18 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { Navbar } from "@/components/layout/Navbar"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { getCourseWithContent, createModule, createChapter, createPage, deletePage, deleteModule, deleteChapter } from "@/actions/course-actions"
+import { getCourseWithContent, createModule, createChapter, createPage, deletePage, deleteModule, deleteChapter, updatePage, updateCourse, updateModule, updateChapter } from "@/actions/course-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageEditor } from "@/components/lecturer/PageEditor"
 import { ModuleSettings } from "@/components/lecturer/ModuleSettings"
 import { QuestionManager } from "@/components/lecturer/QuestionManager"
 import { FinalExamSettings } from "@/components/lecturer/FinalExamSettings"
-import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upload, Loader2, Database, Video, BookOpen, Eye, FileQuestion, GraduationCap } from "lucide-react"
+import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upload, Loader2, Database, Video, BookOpen, Eye, FileQuestion, GraduationCap, Pencil } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import CoursePlayerClient from "@/components/course/CoursePlayerClient"
 import { toast } from "sonner"
 import { useRef } from "react"
@@ -26,6 +25,10 @@ export default function CourseEditorPage() {
 
   // Editor State
   const [editingPage, setEditingPage] = useState<any>(null)
+  const [renamingPage, setRenamingPage] = useState<any>(null)
+  const [renamingModule, setRenamingModule] = useState<any>(null)
+  const [renamingChapter, setRenamingChapter] = useState<any>(null)
+  const [renamingCourse, setRenamingCourse] = useState<any>(null)
   const [editingModule, setEditingModule] = useState<any>(null)
   const [viewingQuestions, setViewingQuestions] = useState<any>(null)
   const [editingFinalExam, setEditingFinalExam] = useState(false)
@@ -154,7 +157,12 @@ export default function CourseEditorPage() {
             {/* Header ... */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                   <h1 className="text-3xl font-bold">{course.title}</h1>
+                   <div className="flex items-center gap-2">
+                       <h1 className="text-3xl font-bold">{course.title}</h1>
+                       <Button size="icon" variant="ghost" onClick={() => setRenamingCourse(course)}>
+                           <Pencil className="h-4 w-4" />
+                       </Button>
+                   </div>
                    <p className="text-muted-foreground">Tanterv Kezelése</p>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
@@ -196,6 +204,9 @@ export default function CourseEditorPage() {
                                             <FolderOpen className="h-5 w-5 text-blue-600" />
                                             {module.title}
                                             <div className="flex items-center ml-2">
+                                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setRenamingModule(module)} title="Modul Átnevezése">
+                                                    <Pencil className="h-3 w-3" />
+                                                </Button>
                                                 <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingModule(module)} title="Modul Beállításai">
                                                     <Settings className="h-3 w-3" />
                                                 </Button>
@@ -219,6 +230,9 @@ export default function CourseEditorPage() {
                                                     <div className="font-medium flex flex-col gap-0.5">
                                                         <div className="flex items-center gap-2 text-sm text-muted-foreground uppercase tracking-wide">
                                                             {chapter.title}
+                                                            <Button size="icon" variant="ghost" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={() => setRenamingChapter(chapter)} title="Fejezet Átnevezése">
+                                                                <Pencil className="h-3 w-3" />
+                                                            </Button>
                                                             <Button size="icon" variant="ghost" className="h-5 w-5 text-destructive opacity-40 hover:opacity-100" onClick={() => scheduleDeletion(chapter._id, 'chapter', chapter.title)} title="Fejezet Törlése">
                                                                 <Trash2 className="h-3 w-3" />
                                                             </Button>
@@ -264,6 +278,18 @@ export default function CourseEditorPage() {
                                                                     onClick={(e) => handleDeletePage(e, page)}
                                                                  >
                                                                      <Trash2 className="h-3.5 w-3.5" />
+                                                                 </Button>
+                                                                 <Button 
+                                                                    size="icon" 
+                                                                    variant="ghost" 
+                                                                    className="h-7 w-7 hover:bg-muted text-muted-foreground hover:text-foreground"
+                                                                    title="Átnevezés"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setRenamingPage(page);
+                                                                    }}
+                                                                 >
+                                                                     <Pencil className="h-3.5 w-3.5" />
                                                                  </Button>
                                                                  <Button size="icon" variant="ghost" className="h-7 w-7">
                                                                      <Settings className="h-3.5 w-3.5" />
@@ -331,13 +357,90 @@ export default function CourseEditorPage() {
                onClose={() => setViewingQuestions(null)}
            />
        )}
-       {editingFinalExam && (
-            <FinalExamSettings
-              course={course}
-              onClose={() => setEditingFinalExam(false)}
-              onSave={() => { setEditingFinalExam(false); loadCourse(); }}
-            />
-       )}
+        {editingFinalExam && (
+             <FinalExamSettings
+               course={course}
+               onClose={() => setEditingFinalExam(false)}
+               onSave={() => { setEditingFinalExam(false); loadCourse(); }}
+             />
+        )}
+        
+        {/* Rename Dialog */}
+        <Dialog open={!!renamingPage} onOpenChange={(open) => !open && setRenamingPage(null)}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Oldal Átnevezése</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                    <Input 
+                        defaultValue={renamingPage?.title} 
+                        id="rename-input"
+                        placeholder="Oldal címe"
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setRenamingPage(null)}>Mégse</Button>
+                    <Button onClick={async () => {
+                        const input = document.getElementById('rename-input') as HTMLInputElement;
+                        if (input && input.value) {
+                            await updatePage(renamingPage._id, { title: input.value });
+                            setRenamingPage(null);
+                            loadCourse();
+                        }
+                    }}>Mentés</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* Generic Rename Dialog for Module/Chapter/Course */}
+        <Dialog 
+            open={!!renamingModule || !!renamingChapter || !!renamingCourse} 
+            onOpenChange={(open) => {
+                if (!open) {
+                    setRenamingModule(null);
+                    setRenamingChapter(null);
+                    setRenamingCourse(null);
+                }
+            }}
+        >
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>
+                        {renamingModule ? "Modul Átnevezése" : renamingChapter ? "Fejezet Átnevezése" : "Kurzus Átnevezése"}
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                    <Input 
+                        defaultValue={renamingModule?.title || renamingChapter?.title || renamingCourse?.title} 
+                        id="generic-rename-input"
+                        placeholder="Új cím"
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => {
+                        setRenamingModule(null);
+                        setRenamingChapter(null);
+                        setRenamingCourse(null);
+                    }}>Mégse</Button>
+                    <Button onClick={async () => {
+                        const input = document.getElementById('generic-rename-input') as HTMLInputElement;
+                        if (input && input.value) {
+                            if (renamingModule) {
+                                await updateModule(renamingModule._id, { title: input.value });
+                            } else if (renamingChapter) {
+                                await updateChapter(renamingChapter._id, { title: input.value });
+                            } else if (renamingCourse) {
+                                await updateCourse(renamingCourse._id, { title: input.value });
+                            }
+                            setRenamingModule(null);
+                            setRenamingChapter(null);
+                            setRenamingCourse(null);
+                            loadCourse();
+                        }
+                    }}>Mentés</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
   )
 }

@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Menu, ChevronLeft, ChevronRight, CheckCircle } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Navbar } from "@/components/layout/Navbar"
 import { ModuleExamRunner } from "@/components/course/ModuleExamRunner"
 import { FinalExamRunner } from "@/components/course/FinalExamRunner"
 import { startModuleExam, submitFinalExam, submitModuleExam } from "@/actions/exam-actions"
@@ -138,7 +137,6 @@ export default function CoursePlayerClient({
 
   return (
     <div className={`flex flex-col ${previewMode ? 'h-full' : 'h-screen'} select-none print:hidden bg-background`}>
-      <Navbar />
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <div className="hidden md:block h-full border-r w-80 flex-shrink-0">
@@ -190,7 +188,7 @@ export default function CoursePlayerClient({
                         </div>
                     </div>
                 ) : viewingMode === 'page' && currentPageData ? (
-                    <div className="flex-1 flex flex-col min-h-0"> 
+                    <div className="flex-1 flex flex-col min-h-0 w-full"> 
                         {/* Content Renders */}
                         {currentPageData.type === 'video' && (
                             <div className="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-lg">

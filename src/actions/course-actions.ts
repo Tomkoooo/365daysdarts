@@ -106,6 +106,24 @@ export async function createChapter(moduleId: string, title: string) {
     return JSON.parse(JSON.stringify(newChapter));
 }
 
+export async function updateCourse(courseId: string, data: { title?: string, description?: string, price?: number, isPublished?: boolean, thumbnail?: string }) {
+    await connectDB();
+    const updatedCourse = await Course.findByIdAndUpdate(courseId, data, { new: true });
+    return JSON.parse(JSON.stringify(updatedCourse));
+}
+
+export async function updateModule(moduleId: string, data: { title?: string }) {
+    await connectDB();
+    const updatedModule = await Module.findByIdAndUpdate(moduleId, data, { new: true });
+    return JSON.parse(JSON.stringify(updatedModule));
+}
+
+export async function updateChapter(chapterId: string, data: { title?: string }) {
+    await connectDB();
+    const updatedChapter = await Chapter.findByIdAndUpdate(chapterId, data, { new: true });
+    return JSON.parse(JSON.stringify(updatedChapter));
+}
+
 export async function createPage(chapterId: string, title: string, content: string = '<p>Új oldal</p>', type: string = 'text') {
     await connectDB();
     const newPage = await Page.create({ title, chapterId, type, content });

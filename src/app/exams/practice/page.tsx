@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Navbar } from "@/components/layout/Navbar"
 import { ExamRunner } from "@/components/exam/ExamRunner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -54,7 +53,6 @@ export default function ExamPage() {
   if (finished) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Navbar />
         <div className="flex-1 flex items-center justify-center p-4">
           <Card className="max-w-md w-full text-center">
             <CardHeader>
@@ -78,7 +76,6 @@ export default function ExamPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
       <main className="flex-1 bg-muted/10">
         {!started ? (
            <div className="container mx-auto p-8 flex flex-col items-center">

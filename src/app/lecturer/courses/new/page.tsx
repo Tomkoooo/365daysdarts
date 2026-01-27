@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2 } from "lucide-react"
-import { Navbar } from "@/components/layout/Navbar"
 
 export default function NewCoursePage() {
   const router = useRouter()
@@ -39,7 +38,6 @@ export default function NewCoursePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-       <Navbar />
        <main className="flex-1 bg-muted/10 p-8 flex justify-center">
          <Card className="max-w-2xl w-full h-fit">
            <CardHeader>
