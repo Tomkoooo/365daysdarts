@@ -38,17 +38,37 @@ export async function GET(
       // We need to convert Node stream to Web Stream for NextResponse
       const downloadStream = bucket.openDownloadStream(_id);
       
+      let isClosed = false;
       const stream = new ReadableStream({
           start(controller) {
               downloadStream.on('data', (chunk) => {
-                  controller.enqueue(chunk);
+                  if (!isClosed) {
+                      try {
+                          controller.enqueue(chunk);
+                      } catch (e) {
+                          isClosed = true;
+                          downloadStream.destroy();
+                      }
+                  }
               });
               downloadStream.on('end', () => {
-                  controller.close();
+                  if (!isClosed) {
+                      try {
+                          controller.close();
+                      } catch (e) {}
+                      isClosed = true;
+                  }
               });
               downloadStream.on('error', (err) => {
-                  controller.error(err);
+                  if (!isClosed) {
+                      controller.error(err);
+                      isClosed = true;
+                  }
               });
+          },
+          cancel() {
+              isClosed = true;
+              downloadStream.destroy();
           }
       });
 
@@ -64,4 +84,34 @@ export async function GET(
       console.error("Media error:", error);
       return new NextResponse("Internal Error", { status: 500 });
   }
+}
+
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id } = await params;
+        if (!id) {
+            return NextResponse.json({ success: false, message: 'Missing file ID' }, { status: 400 });
+        }
+
+        await connectDB();
+        const db = mongoose.connection.db;
+        if (!db) throw new Error("Database connection not ready");
+
+        const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName: 'uploads' });
+        
+        try {
+            const _id = new mongoose.Types.ObjectId(id);
+            await bucket.delete(_id);
+            return NextResponse.json({ success: true, message: "File deleted successfully" });
+        } catch (err) {
+            console.error("Delete failed:", err);
+            return NextResponse.json({ success: false, message: "File not found or delete failed" }, { status: 404 });
+        }
+    } catch (error) {
+        console.error("Media delete failed:", error);
+        return NextResponse.json({ success: false, message: "Media delete failed" }, { status: 500 });
+    }
 }

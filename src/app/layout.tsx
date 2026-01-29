@@ -32,6 +32,9 @@ import { Navbar } from "@/components/layout/Navbar";
 
 // ...
 
+import { UploadProvider } from "@/components/providers/UploadContext";
+import { UploadProgressWidget } from "@/components/layout/UploadProgressWidget";
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -45,13 +48,16 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground flex flex-col min-h-screen`}
       >
         <AuthProvider session={session}>
-          <PrivacyWrapper>
-            <Navbar />
-            {children}
-            <Footer />
-            {process.env.DEV_MODE === "true" && <DevModeRoleSwitcher />}
-            <Toaster position="top-center" expand={true} richColors />
-          </PrivacyWrapper>
+          <UploadProvider>
+            <PrivacyWrapper>
+              <Navbar />
+              {children}
+              <Footer />
+              {process.env.DEV_MODE === "true" && <DevModeRoleSwitcher />}
+              <Toaster position="top-center" expand={true} richColors />
+              <UploadProgressWidget />
+            </PrivacyWrapper>
+          </UploadProvider>
         </AuthProvider>
       </body>
     </html>

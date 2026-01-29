@@ -4,13 +4,13 @@ import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { getCourseWithContent, createModule, createChapter, createPage, deletePage, deleteModule, deleteChapter, updatePage, updateCourse, updateModule, updateChapter } from "@/actions/course-actions"
+import { getCourseWithContent, createModule, createChapter, createPage, deletePage, deleteModule, deleteChapter, updatePage, updateCourse, updateModule, updateChapter, reorderPage } from "@/actions/course-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageEditor } from "@/components/lecturer/PageEditor"
 import { ModuleSettings } from "@/components/lecturer/ModuleSettings"
 import { QuestionManager } from "@/components/lecturer/QuestionManager"
 import { FinalExamSettings } from "@/components/lecturer/FinalExamSettings"
-import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upload, Loader2, Database, Video, BookOpen, Eye, FileQuestion, GraduationCap, Pencil } from "lucide-react"
+import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upload, Loader2, Database, Video, BookOpen, Eye, FileQuestion, GraduationCap, Pencil, ChevronUp, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import CoursePlayerClient from "@/components/course/CoursePlayerClient"
@@ -101,6 +101,12 @@ export default function CourseEditorPage() {
       }
       
       await deletePage(page._id);
+      loadCourse();
+  }
+
+  async function handleReorderPage(e: React.MouseEvent, pageId: string, direction: 'up' | 'down') {
+      e.stopPropagation();
+      await reorderPage(pageId, direction);
       loadCourse();
   }
 
@@ -270,6 +276,26 @@ export default function CourseEditorPage() {
                                                                 <span className="text-sm font-medium">{page.title}</span>
                                                              </div>
                                                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                                                 <div className="flex flex-col mr-1">
+                                                                     <Button 
+                                                                        size="icon" 
+                                                                        variant="ghost" 
+                                                                        className="h-4 w-4 hover:bg-muted text-muted-foreground hover:text-foreground"
+                                                                        onClick={(e) => handleReorderPage(e, page._id, 'up')}
+                                                                        title="Feljebb"
+                                                                     >
+                                                                         <ChevronUp className="h-3 w-3" />
+                                                                     </Button>
+                                                                     <Button 
+                                                                        size="icon" 
+                                                                        variant="ghost" 
+                                                                        className="h-4 w-4 hover:bg-muted text-muted-foreground hover:text-foreground"
+                                                                        onClick={(e) => handleReorderPage(e, page._id, 'down')}
+                                                                        title="Lejjebb"
+                                                                     >
+                                                                         <ChevronDown className="h-3 w-3" />
+                                                                     </Button>
+                                                                 </div>
                                                                  <Button 
                                                                     size="icon" 
                                                                     variant="ghost" 

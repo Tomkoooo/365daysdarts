@@ -9,6 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { RichTextEditor, RichTextEditorRef } from "@/components/ui/rich-text-editor"
 import { Loader2, Upload, Video, FileText, Image as ImageIcon, FileType, BookOpen } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
+import { MediaManager } from "./MediaManager"
+import { useUpload } from "@/components/providers/UploadContext"
 
 interface PageEditorProps {
     page: any;
@@ -17,14 +20,29 @@ interface PageEditorProps {
 }
 
 export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
+    const { startAwaitedUpload, uploads } = useUpload()
     const [title, setTitle] = useState(page.title)
     const [content, setContent] = useState(page.content || "")
     const [pageType, setPageType] = useState<'text' | 'video' | 'image' | 'pdf'>(page.type || 'text')
     const [mediaUrl, setMediaUrl] = useState(page.mediaUrl || "")
     const [loading, setLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
+    const [progress, setProgress] = useState(0)
+    const [uploadStatus, setUploadStatus] = useState<'uploading' | 'merging' | 'idle'>('idle')
+    const [mediaManagerOpen, setMediaManagerOpen] = useState(false)
     const [mediaWidth, setMediaWidth] = useState("100%")
     const editorRef = useRef<RichTextEditorRef>(null);
+
+    // Track active upload for local progress UI
+    const [activeFile, setActiveFile] = useState<string | null>(null);
+    useEffect(() => {
+        if (!activeFile || !uploading) return;
+        const upload = uploads.find(u => u.filename === activeFile && (u.status === 'uploading' || u.status === 'merging'));
+        if (upload) {
+            setProgress(upload.progress);
+            setUploadStatus(upload.status === 'merging' ? 'merging' : 'uploading');
+        }
+    }, [uploads, activeFile, uploading]);
 
     async function handleSave() {
         setLoading(true)
@@ -34,14 +52,12 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                 type: pageType 
             }
             
-            // Only include content for text pages
             if (pageType === 'text') {
                 updateData.content = content
-                updateData.mediaUrl = "" // Clear media URL for text pages
+                updateData.mediaUrl = "" 
             } else {
-                // For media pages, save the URL
                 updateData.mediaUrl = mediaUrl
-                updateData.content = "" // Clear content for media pages
+                updateData.content = "" 
             }
             
             await updatePage(page._id, updateData)
@@ -57,21 +73,18 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
         const file = e.target.files?.[0]
         if (!file) return
 
-        setUploading(true) // Start uploading UI state
+        setActiveFile(file.name)
+        setUploading(true)
+        setProgress(0)
+        setUploadStatus('uploading')
         
         try {
-            // 1. Upload the file first to get the URL
-            const formData = new FormData()
-            formData.append('file', file)
-            const res = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            })
-            const data = await res.json()
+            const { success, url } = await startAwaitedUpload(file);
             
-            if (!data.success) throw new Error("Upload failed");
+            if (!success || !url) throw new Error("Upload failed");
             
-            // 2. Handle Text Page embeds (Images/Videos in text)
+            const data = { success, url };
+            
             if (pageType === 'text') {
                  const fileType = file.type.startsWith('image/') ? 'image' : 'video';
                  const style = `max-width: ${mediaWidth}; width: ${mediaWidth}; height: auto; display: block; margin: 0 auto;`;
@@ -91,15 +104,9 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                      setContent((prev: string) => prev + insertHtml);
                  }
             } 
-            // 3. Handle PDF Splitting
             else if (pageType === 'pdf' && file.type === 'application/pdf') {
                  setMediaUrl(data.url)
-                 
-                 // Dynamically import pdfjs
                  const pdfjs = await import('pdfjs-dist');
-                 // Set worker - using a CDN for simplicity in this context, 
-                 // ensuring version matches or is compatible. 
-                 // For production, referencing a local file is better.
                  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
                  try {
@@ -110,20 +117,13 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                          if (confirm(`Ennek a PDF-nek ${numPages} oldala van. Szeretne külön oldalakat létrehozni minden oldalhoz? (A jelenlegi oldal lesz az 1. oldal)`)) {
                              const { createPageBatch, updatePage } = await import("@/actions/course-actions");
                              
-                             // 1. Update ONLY the mediaUrl and pdf metadata for CURRENT page (Page 1)
-                             // Do NOT update title/type yet as that happens on "Save"
-                             // We just set local state for those, but for PDF splitting we need immediate server effect or we just queue it?
-                             // Better: We just let the user save this page as Page 1. 
-                             // BUT we need to create pages 2..N NOW.
-                             
                              const newPages = [];
                              for (let i = 2; i <= numPages; i++) {
                                  newPages.push({
                                      title: `${title} - ${i}. rész`,
                                      type: 'pdf',
                                      mediaUrl: data.url,
-                                     pdfPageIndex: i, // 1-based index or 0-based? Let's use 1-based for logic, 0 for internal? PDFJS uses 1.
-                                     // Let's store 1-based index to match PDFJS
+                                     pdfPageIndex: i,
                                      pdfTotalPages: numPages,
                                      chapterId: page.chapterId 
                                  });
@@ -131,13 +131,6 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                              
                              await createPageBatch(page.chapterId, newPages);
                              
-                             // Current page is Page 1
-                             // We update local state to reflect this metadata so it gets saved on "Save"
-                             // We need to add these fields to component state or handle in handleSave
-                             // For now, let's treat "mediaUrl" as sufficient trigger, but we need to save pdfPageIndex 1
-                             // We'll add a hidden state or just auto-update on save if we detect PDF
-                             // Limitation: PageEditor implementation refactor needed to store pdfPageIndex in state.
-                             // FAST FIX: We can update the current page IMMEDIATELY with the PDF metadata.
                              await updatePage(page._id, { 
                                  mediaUrl: data.url, 
                                  type: 'pdf',
@@ -148,15 +141,13 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                              });
                              
                              alert(`Létrehozva ${numPages - 1} további oldal a PDF-ből!`);
-                             onSave(); // Close editor to refresh details
+                             onSave(); 
                          }
                      }
                  } catch (pdfErr) {
                      console.error("Error parsing PDF:", pdfErr);
-                     // Fallback: just set URL
                  }
             }
-            // 4. Handle Video/Image Page
             else {
                 setMediaUrl(data.url)
             }
@@ -166,19 +157,17 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
             alert("Upload failed")
         } finally {
             setUploading(false)
+            setUploadStatus('idle')
+            setActiveFile(null)
         }
     }
 
     const getAcceptedFileTypes = () => {
         switch (pageType) {
-            case 'video':
-                return 'video/*'
-            case 'image':
-                return 'image/*'
-            case 'pdf':
-                return '.pdf'
-            default:
-                return 'image/*,video/*,.pdf'
+            case 'video': return 'video/*'
+            case 'image': return 'image/*'
+            case 'pdf': return '.pdf'
+            default: return 'image/*,video/*,.pdf'
         }
     }
 
@@ -210,7 +199,6 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                         </Select>
                      </div>
 
-                     {/* Editor Area */}
                      <div className="flex-1 flex flex-col gap-2 min-h-0">
                         {pageType === 'text' ? (
                             <div className="flex-1 flex flex-col gap-2 border rounded-md p-4 bg-background shadow-sm overflow-hidden">
@@ -233,18 +221,36 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                                             </select>
                                         </div>
 
-                                        <Label htmlFor="file-upload" className="cursor-pointer text-xs flex items-center gap-1 bg-secondary text-secondary-foreground hover:bg-secondary/80 px-3 py-1.5 rounded transition-colors font-medium border shadow-sm">
-                                             <ImageIcon className="h-3 w-3" /> Kép Beszúrása
-                                        </Label>
-                                        <Input 
-                                            id="file-upload" 
-                                            type="file" 
-                                            className="hidden" 
-                                            accept="image/*" 
-                                            onChange={handleMediaUpload} 
-                                            disabled={uploading}
-                                        />
-                                        {uploading && <Loader2 className="h-3 w-3 animate-spin" />}
+                                        <div className="flex gap-2">
+                                            <Button 
+                                                variant="outline" 
+                                                size="sm" 
+                                                className="h-8 gap-2"
+                                                onClick={() => setMediaManagerOpen(true)}
+                                            >
+                                                <BookOpen className="h-4 w-4" />
+                                                Médiatár
+                                            </Button>
+                                            <Label htmlFor="file-upload" className="cursor-pointer text-xs flex items-center gap-1 bg-secondary text-secondary-foreground hover:bg-secondary/80 px-3 py-1.5 rounded transition-colors font-medium border shadow-sm">
+                                                 <ImageIcon className="h-3 w-3" /> Kép Beszúrása
+                                            </Label>
+                                            <Input 
+                                                id="file-upload" 
+                                                type="file" 
+                                                className="hidden" 
+                                                accept="image/*" 
+                                                onChange={handleMediaUpload} 
+                                                disabled={uploading}
+                                            />
+                                        </div>
+                                        {uploading && (
+                                            <div className="flex items-center gap-2 min-w-[100px]">
+                                                <Progress value={progress} className="h-2 w-24" />
+                                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                                    {uploadStatus === 'merging' ? 'Összefűzés...' : `${progress}%`}
+                                                </span>
+                                            </div>
+                                        )}
                                      </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[600px] border rounded bg-card">
@@ -282,6 +288,15 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                                 />
 
                                 <div className="flex items-center gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-9 gap-2"
+                                        onClick={() => setMediaManagerOpen(true)}
+                                    >
+                                        <BookOpen className="h-4 w-4" />
+                                        Médiatár
+                                    </Button>
                                     <Label htmlFor="media-upload" className="cursor-pointer flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded transition-colors">
                                         <Upload className="h-4 w-4" /> {pageType === 'video' ? 'Videó' : pageType === 'image' ? 'Kép' : 'PDF'} Feltöltése
                                     </Label>
@@ -293,7 +308,18 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                                         onChange={handleMediaUpload} 
                                         disabled={uploading}
                                     />
-                                    {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+                                    {uploading && (
+                                        <div className="flex items-center gap-3 flex-1">
+                                            <Progress value={progress} className="h-2" />
+                                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                                {uploadStatus === 'merging' ? (
+                                                    <span className="flex items-center gap-1">
+                                                        <Loader2 className="h-3 w-3 animate-spin" /> Összefűzés... (Ez eltarthat néhány percig)
+                                                    </span>
+                                                ) : `${progress}%`}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {mediaUrl && (
@@ -312,9 +338,9 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                                         )}
                                     </div>
                                 )}
-                            </div>
+                             </div>
                         )}
-                    </div>
+                     </div>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>Mégse</Button>
@@ -324,6 +350,15 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                     </Button>
                 </DialogFooter>
             </DialogContent>
+            
+            <MediaManager 
+                open={mediaManagerOpen} 
+                onClose={() => setMediaManagerOpen(false)}
+                onSelect={(url: string) => {
+                    setMediaUrl(url)
+                    setMediaManagerOpen(false)
+                }}
+            />
         </Dialog>
     )
 }

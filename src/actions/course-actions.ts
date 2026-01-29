@@ -31,7 +31,8 @@ export async function getCourseWithContent(courseId: string) {
       model: Chapter,
       populate: {
           path: "pages",
-          model: Page
+          model: Page,
+          options: { sort: { order: 1 } }
       }
     },
   }).lean(); // lean() for simpler serialization
@@ -156,6 +157,39 @@ export async function updatePage(pageId: string, data: { title?: string, content
     await connectDB();
     const updatedPage = await Page.findByIdAndUpdate(pageId, data, { new: true });
     return JSON.parse(JSON.stringify(updatedPage));
+}
+
+export async function reorderPage(pageId: string, direction: 'up' | 'down') {
+    await connectDB();
+    const page = await Page.findById(pageId);
+    if (!page) throw new Error("Page not found");
+
+    const chapter = await Chapter.findById(page.chapterId).populate({
+        path: 'pages',
+        options: { sort: { order: 1 } }
+    });
+    if (!chapter) throw new Error("Chapter not found");
+
+    const pages = chapter.pages;
+    const currentIndex = pages.findIndex((p: any) => p._id.toString() === pageId);
+
+    if (direction === 'up' && currentIndex > 0) {
+        const prevPage = pages[currentIndex - 1];
+        const currentOrder = page.order || 0;
+        const prevOrder = prevPage.order || 0;
+
+        await Page.findByIdAndUpdate(pageId, { order: prevOrder });
+        await Page.findByIdAndUpdate(prevPage._id, { order: currentOrder });
+    } else if (direction === 'down' && currentIndex < pages.length - 1) {
+        const nextPage = pages[currentIndex + 1];
+        const currentOrder = page.order || 0;
+        const nextOrder = nextPage.order || 0;
+
+        await Page.findByIdAndUpdate(pageId, { order: nextOrder });
+        await Page.findByIdAndUpdate(nextPage._id, { order: currentOrder });
+    }
+
+    return { success: true };
 }
 
 export async function deletePage(pageId: string) {

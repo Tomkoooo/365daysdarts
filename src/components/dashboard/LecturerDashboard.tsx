@@ -7,11 +7,14 @@ import { useEffect, useState } from "react"
 import { getLecturerExamResults } from "@/actions/exam-actions"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { MediaManager } from "@/components/lecturer/MediaManager"
+import { BookOpen } from "lucide-react"
 
 export default function LecturerDashboard() {
   const [results, setResults] = useState<any[]>([])
   const [courses, setCourses] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [mediaManagerOpen, setMediaManagerOpen] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -33,10 +36,20 @@ export default function LecturerDashboard() {
     <div className="container mx-auto p-8 space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Oktatói Irányítópult</h1>
-        <Button asChild>
-          <Link href="/lecturer/courses/new">Kurzus Létrehozása</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setMediaManagerOpen(true)} className="gap-2">
+            <BookOpen className="h-4 w-4" /> Médiatár Kezelése
+          </Button>
+          <Button asChild>
+            <Link href="/lecturer/courses/new">Kurzus Létrehozása</Link>
+          </Button>
+        </div>
       </div>
+      
+      <MediaManager 
+        open={mediaManagerOpen} 
+        onClose={() => setMediaManagerOpen(false)} 
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
