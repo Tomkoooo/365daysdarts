@@ -127,7 +127,12 @@ export async function updateChapter(chapterId: string, data: { title?: string })
 
 export async function createPage(chapterId: string, title: string, content: string = '<p>Új oldal</p>', type: string = 'text') {
     await connectDB();
-    const newPage = await Page.create({ title, chapterId, type, content });
+    
+    // Get max order to append to the end
+    const lastPage = await Page.findOne({ chapterId }).sort({ order: -1 });
+    const newOrder = lastPage && typeof lastPage.order === 'number' ? lastPage.order + 1 : 0;
+
+    const newPage = await Page.create({ title, chapterId, type, content, order: newOrder });
     await Chapter.findByIdAndUpdate(chapterId, { $push: { pages: newPage._id } });
     return JSON.parse(JSON.stringify(newPage));
 }
@@ -135,16 +140,14 @@ export async function createPage(chapterId: string, title: string, content: stri
 export async function createPageBatch(chapterId: string, pages: { title: string, type: string, content?: string, mediaUrl?: string, pdfPageIndex?: number, pdfTotalPages?: number }[]) {
     await connectDB();
     
-    // Get current page count to determine order
-    const chapter = await Chapter.findById(chapterId);
-    if (!chapter) throw new Error("Chapter not found");
-    
-    const existingPagesCount = chapter.pages.length;
+    // Get current max order
+    const lastPage = await Page.findOne({ chapterId }).sort({ order: -1 });
+    let startOrder = lastPage && typeof lastPage.order === 'number' ? lastPage.order + 1 : 0;
 
     const newPages = await Page.insertMany(pages.map((p, idx) => ({
         ...p,
         chapterId,
-        order: existingPagesCount + idx
+        order: startOrder + idx
     })));
     
     const newPageIds = newPages.map(p => p._id);
@@ -164,30 +167,34 @@ export async function reorderPage(pageId: string, direction: 'up' | 'down') {
     const page = await Page.findById(pageId);
     if (!page) throw new Error("Page not found");
 
-    const chapter = await Chapter.findById(page.chapterId).populate({
-        path: 'pages',
-        options: { sort: { order: 1 } }
-    });
-    if (!chapter) throw new Error("Chapter not found");
+    // Fetch all pages in the chapter to normalize order
+    // Sort by existing order, then by createdAt to handle legacy data (all order=0) consistently
+    const pages = await Page.find({ chapterId: page.chapterId }).sort({ order: 1, createdAt: 1 });
+    
+    // Normalize orders (0, 1, 2...)
+    const pageIds = pages.map(p => p._id.toString());
+    const currentIndex = pageIds.indexOf(pageId);
 
-    const pages = chapter.pages;
-    const currentIndex = pages.findIndex((p: any) => p._id.toString() === pageId);
+    if (currentIndex === -1) throw new Error("Page not found in chapter");
 
+    // Perform swap in the array
     if (direction === 'up' && currentIndex > 0) {
-        const prevPage = pages[currentIndex - 1];
-        const currentOrder = page.order || 0;
-        const prevOrder = prevPage.order || 0;
-
-        await Page.findByIdAndUpdate(pageId, { order: prevOrder });
-        await Page.findByIdAndUpdate(prevPage._id, { order: currentOrder });
-    } else if (direction === 'down' && currentIndex < pages.length - 1) {
-        const nextPage = pages[currentIndex + 1];
-        const currentOrder = page.order || 0;
-        const nextOrder = nextPage.order || 0;
-
-        await Page.findByIdAndUpdate(pageId, { order: nextOrder });
-        await Page.findByIdAndUpdate(nextPage._id, { order: currentOrder });
+        // Swap with previous
+        [pageIds[currentIndex], pageIds[currentIndex - 1]] = [pageIds[currentIndex - 1], pageIds[currentIndex]];
+    } else if (direction === 'down' && currentIndex < pageIds.length - 1) {
+        // Swap with next
+        [pageIds[currentIndex], pageIds[currentIndex + 1]] = [pageIds[currentIndex + 1], pageIds[currentIndex]];
+    } else {
+        // Warning: Movement not possible (already at top/bottom) but we still proceed to save normalized orders
+        // to fix any legacy data issues
     }
+
+    // Write back all orders
+    const updates = pageIds.map((id, index) => 
+        Page.findByIdAndUpdate(id, { order: index })
+    );
+
+    await Promise.all(updates);
 
     return { success: true };
 }
