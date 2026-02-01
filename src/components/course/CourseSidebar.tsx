@@ -47,9 +47,9 @@ export function CourseSidebar({
     const completedModules = progress.completedModules || [];
     const allModulesCompleted = modules.every((m: any) => completedModules.includes(m._id.toString()));
   return (
-    <div className="w-80 border-r h-full flex flex-col bg-background">
+    <div className="w-full h-full flex flex-col bg-background min-h-0">
        <div className="p-4 border-b font-semibold truncate" title={courseTitle}>{courseTitle}</div>
-       <ScrollArea className="flex-1">
+       <ScrollArea className="flex-1 min-h-0">
          <Accordion type="multiple" defaultValue={modules.map(m => m._id)} className="w-full">
            {modules.map((module: any) => (
              <AccordionItem value={module._id} key={module._id}>
@@ -118,7 +118,7 @@ export function CourseSidebar({
        {onModuleExamSelect && (
            <div className="border-t p-4 bg-muted/10">
                 <button 
-                    onClick={() => allModulesCompleted ? onModuleExamSelect('final-exam') : null}
+                    onClick={() => allModulesCompleted ? onModuleExamSelect?.('final-exam') : null}
                     disabled={!allModulesCompleted}
                     className={cn(
                         "w-full flex flex-col items-center justify-center gap-1 p-3 rounded-md transition-colors font-bold shadow-sm",

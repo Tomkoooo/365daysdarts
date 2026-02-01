@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress"
 import { MediaManager } from "./MediaManager"
 import { useUpload } from "@/components/providers/UploadContext"
+import { PDFViewer } from "@/components/course/PDFViewer"
 
 interface PageEditorProps {
     page: any;
@@ -323,19 +324,46 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                                 </div>
 
                                 {mediaUrl && (
-                                    <div className="border rounded-lg p-4 bg-muted/50">
-                                        <Label className="text-sm text-muted-foreground mb-2 block">Előnézet:</Label>
-                                        {pageType === 'video' && (
-                                            <video src={mediaUrl} controls className="w-full max-h-64 rounded" />
-                                        )}
-                                        {pageType === 'image' && (
-                                            <img src={mediaUrl} alt="Előnézet" className="w-full max-h-64 object-contain rounded" />
-                                        )}
-                                        {pageType === 'pdf' && (
-                                            <div className="text-sm text-muted-foreground">
-                                                PDF fájl: {mediaUrl}
+                                    <div className="border rounded-lg p-4 bg-muted/50 space-y-3">
+                                        <Label className="text-sm font-semibold">Előnézet:</Label>
+                                        
+                                        {/* Visual Preview */}
+                                        <div className="border rounded-lg overflow-hidden bg-background">
+                                            {pageType === 'video' && (
+                                                <video src={mediaUrl} controls className="w-full max-h-96 rounded" />
+                                            )}
+                                            {pageType === 'image' && (
+                                                <img src={mediaUrl} alt="Előnézet" className="w-full max-h-96 object-contain rounded" />
+                                            )}
+                                            {pageType === 'pdf' && (
+                                                <div className="min-h-[400px]">
+                                                    <PDFViewer url={mediaUrl} pageIndex={1} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        {/* URL Display with Copy */}
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs text-muted-foreground">Média URL:</Label>
+                                            <div className="flex gap-2">
+                                                <Input 
+                                                    value={mediaUrl} 
+                                                    readOnly 
+                                                    className="font-mono text-xs bg-muted/30" 
+                                                />
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="outline" 
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(mediaUrl);
+                                                        alert('URL vágólapra másolva!');
+                                                    }}
+                                                    className="shrink-0"
+                                                >
+                                                    Másolás
+                                                </Button>
                                             </div>
-                                        )}
+                                        </div>
                                     </div>
                                 )}
                              </div>

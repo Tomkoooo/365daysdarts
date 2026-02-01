@@ -76,7 +76,10 @@ export async function GET(
           headers: {
               'Content-Type': contentType,
               'Content-Length': file.length.toString(),
-              'Cache-Control': 'public, max-age=31536000, immutable'
+              'Cache-Control': 'public, max-age=31536000, immutable',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET',
+              'Content-Disposition': 'inline'
           }
       });
 

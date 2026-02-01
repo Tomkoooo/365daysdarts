@@ -27,7 +27,18 @@ export function PDFViewer({ url, pageIndex = 1 }: PDFViewerProps) {
         const pdfjs = await import('pdfjs-dist');
         pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-        const loadingTask = pdfjs.getDocument(url);
+        // Fetch the PDF as a blob first to avoid CORS issues with PDF.js
+        let pdfUrl = url;
+        if (url.startsWith('/api/media/')) {
+          const response = await fetch(url, { credentials: 'include' });
+          if (!response.ok) {
+            throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+          }
+          const blob = await response.blob();
+          pdfUrl = URL.createObjectURL(blob);
+        }
+
+        const loadingTask = pdfjs.getDocument(pdfUrl);
         const pdf = await loadingTask.promise;
 
         if (!active) return;

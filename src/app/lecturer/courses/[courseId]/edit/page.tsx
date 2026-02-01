@@ -182,7 +182,7 @@ export default function CourseEditorPage() {
                                  <Eye className="mr-2 h-4 w-4" /> Előnézet
                              </Button>
                          </DialogTrigger>
-                         <DialogContent className="max-w-[95vw] w-full h-[95vh] p-0 overflow-y-auto">
+                         <DialogContent className="max-w-[95vw] w-full h-[95vh] p-0 overflow-hidden flex flex-col">
                              <CoursePlayerClient course={course} previewMode={true} />
                          </DialogContent>
                      </Dialog>

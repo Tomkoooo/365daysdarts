@@ -136,10 +136,10 @@ export default function CoursePlayerClient({
   )
 
   return (
-    <div className={`flex flex-col ${previewMode ? 'h-full' : 'h-screen'} select-none print:hidden bg-background`}>
-      <div className="flex flex-1 overflow-hidden">
+    <div className={`flex flex-col ${previewMode ? 'flex-1 h-full min-h-0' : 'h-screen'} select-none print:hidden bg-background`}>
+      <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Sidebar */}
-        <div className="hidden md:block h-full border-r w-80 flex-shrink-0">
+        <div className="hidden md:block h-full border-r w-80 flex-shrink-0 min-h-0">
           {SidebarContent}
         </div>
 
@@ -173,9 +173,9 @@ export default function CoursePlayerClient({
              )}
           </div>
 
-          {/* 2. Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-muted/10">
-             <div className="max-w-5xl mx-auto h-full flex flex-col items-center">
+          {/* 2. Content Area - Fixed Height, No Scroll */}
+          <div className="flex-1 flex flex-col p-4 md:p-8 bg-muted/10 overflow-hidden min-h-0">
+             <div className="max-w-5xl mx-auto w-full h-full flex flex-col">
                  
                 {loading ? (
                     <div className="space-y-6">
@@ -188,61 +188,71 @@ export default function CoursePlayerClient({
                         </div>
                     </div>
                 ) : viewingMode === 'page' && currentPageData ? (
-                    <div className="flex-1 flex flex-col min-h-0 w-full"> 
+                    <div className="flex-1 flex flex-col min-h-0 w-full h-full"> 
                         {/* Content Renders */}
                         {currentPageData.type === 'video' && (
-                            <div className="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-lg">
-                                <VideoPlayer url={currentPageData.mediaUrl || ""} />
+                            <div className="w-full h-full flex items-center justify-center">
+                                <div className="aspect-video w-full max-h-full bg-black rounded-lg overflow-hidden shadow-lg">
+                                    <VideoPlayer url={currentPageData.mediaUrl || ""} />
+                                </div>
                             </div>
                         )}
                         
                         {currentPageData.type === 'pdf' && (
-                            <div className="flex-1 min-h-[500px] border rounded-lg overflow-hidden shadow-sm">
-                                 <PDFViewer 
-                                   url={currentPageData.mediaUrl || "/dummy.pdf"} 
-                                   pageIndex={currentPageData.pdfPageIndex} 
-                                 />
+                            <div className="w-full h-full flex items-center justify-center">
+                                <div className="w-full h-full border rounded-lg overflow-hidden shadow-sm bg-background">
+                                     <PDFViewer 
+                                       url={currentPageData.mediaUrl || "/dummy.pdf"} 
+                                       pageIndex={currentPageData.pdfPageIndex} 
+                                     />
+                                </div>
                             </div>
                         )}
                         
                         {currentPageData.type === 'text' && (
-                            <div className="prose prose-lg dark:prose-invert max-w-none bg-background p-8 rounded-lg shadow-sm border">
-                                <div dangerouslySetInnerHTML={{ __html: currentPageData.content || "" }} />
+                            <div className="w-full h-full overflow-y-auto">
+                                <div className="prose prose-lg dark:prose-invert max-w-none bg-background p-8 rounded-lg shadow-sm border">
+                                    <div dangerouslySetInnerHTML={{ __html: currentPageData.content || "" }} />
+                                </div>
                             </div>
                         )}
 
                         {currentPageData.type === 'image' && (
-                            <div className="relative flex justify-center bg-background p-4 rounded-lg border shadow-sm min-h-[400px]">
+                            <div className="w-full h-full flex items-center justify-center bg-background rounded-lg border shadow-sm p-4">
                                 {imgLoading && <Skeleton className="absolute inset-0 m-4 rounded-lg" />}
                                 <img 
                                     src={currentPageData.mediaUrl} 
                                     alt={currentPageData.title} 
-                                    className={`max-w-full h-auto rounded transition-opacity duration-300 ${imgLoading ? 'opacity-0' : 'opacity-100'}`} 
+                                    className={`max-w-full max-h-full object-contain rounded transition-opacity duration-300 ${imgLoading ? 'opacity-0' : 'opacity-100'}`} 
                                     onLoad={() => setImgLoading(false)}
                                 />
                             </div>
                         )}
                     </div>
                 ) : viewingMode === 'exam' && examModuleId ? (
-                    <ModuleExamRunner 
-                       moduleId={examModuleId} 
-                       onComplete={handleExamComplete}
-                       onCancel={() => {
-                           const m = course.modules.find((m: any) => m._id === examModuleId);
-                           if(m?.chapters?.[0]?.pages?.[0]) handleSelect(m.chapters[0].pages[0]._id);
-                       }}
-                    />
+                    <div className="w-full h-full overflow-y-auto">
+                        <ModuleExamRunner 
+                           moduleId={examModuleId} 
+                           onComplete={handleExamComplete}
+                           onCancel={() => {
+                               const m = course.modules.find((m: any) => m._id === examModuleId);
+                               if(m?.chapters?.[0]?.pages?.[0]) handleSelect(m.chapters[0].pages[0]._id);
+                           }}
+                        />
+                    </div>
                 ) : viewingMode === 'final-exam' ? (
-                    <FinalExamRunner 
-                        courseId={course._id}
-                        onComplete={(passed) => {
-                            if (passed) {
-                                alert("Gratulálunk! Sikeresen elvégezted a kurzust és sikeres záróvizsgát tettél. Most visszairányítunk a főoldalra.");
-                                router.push("/dashboard");
-                            }
-                        }}
-                        onCancel={() => handleSelect(firstPage._id)}
-                    />
+                    <div className="w-full h-full overflow-y-auto">
+                        <FinalExamRunner 
+                            courseId={course._id}
+                            onComplete={(passed) => {
+                                if (passed) {
+                                    alert("Gratulálunk! Sikeresen elvégezted a kurzust és sikeres záróvizsgát tettél. Most visszairányítunk a főoldalra.");
+                                    router.push("/dashboard");
+                                }
+                            }}
+                            onCancel={() => handleSelect(firstPage._id)}
+                        />
+                    </div>
                 ) : (
                     <div className="flex items-center justify-center h-full text-muted-foreground">Válassz egy oldalt a kezdéshez.</div>
                 )}
