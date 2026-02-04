@@ -117,11 +117,11 @@ export function Navbar() {
             </DropdownMenu>
           ) : (
             <div className="hidden md:flex gap-2">
-                <Button variant="ghost" className="text-white hover:text-cta hover:bg-navy-lighter" asChild>
-                    <Link href="/login">Belépés</Link>
+                <Button variant="ghost" className="text-white hover:text-cta hover:bg-navy-lighter" onClick={() => signIn("google", { callbackUrl: "/dashboard" })}>
+                    Belépés
                 </Button>
-                <Button className="bg-cta hover:bg-cta-hover text-white" asChild>
-                    <Link href="/register">Regisztráció</Link>
+                <Button className="bg-cta hover:bg-cta-hover text-white" onClick={() => signIn("google", { callbackUrl: "/dashboard" })}>
+                    Regisztráció
                 </Button>
             </div>
           )}
@@ -133,10 +133,10 @@ export function Navbar() {
                 <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="bg-navy-darker border-l-navy-lighter text-white w-[300px] sm:w-[400px] p-0">
-                <div className="flex flex-col gap-6 mt-8 h-full overflow-y-auto px-6 pb-12">
+            <SheetContent side="right" className="bg-navy-darker border-l-navy-lighter text-white w-[300px] sm:w-[400px] p-0 flex flex-col h-full">
+                <div className="flex flex-col gap-6 mt-8 h-full overflow-y-auto flex-1 px-6 pb-12">
                     {/* Mobile Brand */}
-                    <div className="flex items-center gap-2 font-bold text-xl mb-4">
+                    <div className="flex items-center gap-2 font-bold text-xl mb-4 shrink-0">
                         <span className="text-cta">365days</span>darts
                     </div>
 
@@ -160,12 +160,12 @@ export function Navbar() {
                     </div>
 
                     {!session?.user && (
-                        <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-navy-lighter">
-                            <Button variant="ghost" className="w-full justify-start text-lg" asChild>
-                                <Link href="/login" onClick={() => setOpen(false)}>Belépés</Link>
+                        <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-navy-lighter shrink-0">
+                            <Button variant="ghost" className="w-full justify-start text-lg" onClick={() => { setOpen(false); signIn("google", { callbackUrl: "/dashboard" }); }}>
+                                Belépés
                             </Button>
-                            <Button className="w-full bg-cta hover:bg-cta-hover" asChild>
-                                <Link href="/register" onClick={() => setOpen(false)}>Regisztráció</Link>
+                            <Button className="w-full bg-cta hover:bg-cta-hover" onClick={() => { setOpen(false); signIn("google", { callbackUrl: "/dashboard" }); }}>
+                                Regisztráció
                             </Button>
                         </div>
                     )}

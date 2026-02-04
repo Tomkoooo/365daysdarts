@@ -21,6 +21,7 @@ export default function AdvancedPage() {
         <div className="bg-navy rounded-xl border border-navy-lighter p-8 text-center mb-12">
             <TrendingUp className="h-12 w-12 text-purple-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-white mb-4">Emeld a szintet!</h2>
+            <p className="text-gray-400 mb-2">Videóink egy része jelenleg a <a href="https://www.facebook.com/magyardartsakademia" target="_blank" rel="noopener noreferrer" className="text-cta hover:underline">Facebook oldalunkon</a> érhető el, de hamarosan itt is megtalálhatóak lesznek.</p>
             <p className="text-gray-400 mb-6">A haladó anyagok megtekintéséhez bejelentkezés szükséges.</p>
             <div className="flex justify-center gap-4">
                 <Button asChild size="lg" className="bg-purple-600 hover:bg-purple-700 text-white border-none">

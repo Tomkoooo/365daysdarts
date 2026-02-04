@@ -15,11 +15,14 @@ export default function HomePage() {
               A Darts Sport <span className="text-cta">Jövője</span> Itt Kezdődik
             </h1>
             <p className="text-xl text-gray-300 max-w-2xl leading-relaxed">
-              A 365daysdarts Alapítvány célja, hogy mindenki számára elérhetővé tegye a profi darts oktatást. Csatlakozz közösségünkhöz, fejlődj instruktorainkkal, vagy válj te is oktatóvá!
+              A Magyar Darts Akadémia Alapítvány célja, hogy mindenki számára elérhetővé tegye a profi darts oktatást. Csatlakozz közösségünkhöz, fejlődj instruktorainkkal, vagy válj te is oktatóvá!
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            <div className="flex flex-col sm:flex-row gap-4 pt-4 flex-wrap">
               <Button size="lg" className="bg-cta hover:bg-cta-hover text-white text-lg h-12 px-8" asChild>
                 <Link href="/dartsosoknak/kezdoknek">Kezdés Ingyenesen</Link>
+              </Button>
+              <Button size="lg" className="bg-white text-navy hover:bg-gray-100 text-lg h-12 px-8 font-bold" asChild>
+                <Link href="/instruktoroknak">Instruktor Képzés</Link>
               </Button>
               <Button size="lg" variant="outline" className="border-navy-lighter text-white hover:bg-navy-lighter text-lg h-12 px-8" asChild>
                 <Link href="/alapitvanyrol/magunkrol">Ismerj meg minket</Link>

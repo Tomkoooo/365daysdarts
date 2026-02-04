@@ -11,6 +11,9 @@ export default function PlayersIntroPage() {
           <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
             Akár most fogtál először nyilat, akár már versenyekre jársz, nálunk megtalálod a szintednek megfelelő képzést.
           </p>
+          <p className="text-gray-400">
+            Videós tartalmainkért látogass el a <a href="https://www.facebook.com/magyardartsakademia" target="_blank" rel="noopener noreferrer" className="text-cta hover:underline font-semibold">Magyar Darts Akadémia Facebook oldalára</a>!
+          </p>
         </div>
       </section>
 
