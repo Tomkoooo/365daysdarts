@@ -64,7 +64,7 @@ export function Navbar() {
                   <Link href="/alapitvanyrol/kuratorium">Kuratórium</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="focus:bg-navy-lighter focus:text-cta cursor-pointer">
-                  <Link href="/alapitvanyrol/oktatok">Oktatók</Link>
+                  <Link href="/alapitvanyrol/oktatok">Stáb</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
            </DropdownMenu>
@@ -145,7 +145,7 @@ export function Navbar() {
                             <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Alapítvány</h4>
                             <NavLink href="/alapitvanyrol/magunkrol" mobile>Magunkról</NavLink>
                             <NavLink href="/alapitvanyrol/kuratorium" mobile>Kuratórium</NavLink>
-                            <NavLink href="/alapitvanyrol/oktatok" mobile>Oktatók</NavLink>
+                            <NavLink href="/alapitvanyrol/oktatok" mobile>Stáb</NavLink>
                         </div>
 
                         <div className="flex flex-col gap-2">

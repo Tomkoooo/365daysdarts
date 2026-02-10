@@ -3,10 +3,24 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function BoardPage() {
   const members = [
-    { name: "Kovács János", role: "Elnök", bio: "20 éve a darts sportért dolgozik, korábbi válogatott játékos." },
-    { name: "Nagy Éva", role: "Alelnök", bio: "Szervezetfejlesztési szakember, a női szakág vezetője." },
-    { name: "Szabó Péter", role: "Kuratóriumi Tag", bio: "Pénzügyi szakember, az alapítvány gazdasági vezetője." },
-    { name: "Kiss Anna", role: "Kuratóriumi Tag", bio: "Ifjúsági nevelésért felelős szakmai igazgató." },
+    { 
+      name: "Lukács Kovács Henriette", 
+      role: "Elnök", 
+      bio: "A Pannon Egyetemen folytatott tanulmányaim után Exeterben DMBA szakon másod-diplomáztam, ahol elsősorban szervezet menedzsmenttel, marketinggel és stratégia fejlesztéssel foglalkoztam. Az alapítvány elnökeként célom, hogy a dartson keresztül - amely fegyelemre, kitartásra és célkitűzésre tanít - minél több fiatal találjon lehetőséget a sportolásra.",
+      image: "/instrukturok/Kovacs Heni.JPG"
+    },
+    { 
+      name: "Marti György", 
+      role: "Kuratóriumi Tag", 
+      bio: "Építőipari diplomáim mellett kezdtem el sportszervezéssel, és vezetéssel foglalkozni. 40 éve vezetek szakosztályt, 15 éve klubelnök vagyok. Dolgoztam két országos szakszövetségben, a Magyar Sakkszövetségben 15 évig voltam Szervezési igazgató, a Magyar Darts Szövetségben voltam Operatív igazgató, és Főtitkár is.",
+      image: "/instrukturok/Marti Gyorgy.jpg" 
+    },
+    { 
+      name: "Tekauer Norbert", 
+      role: "Kuratóriumi Tag", 
+      bio: "Sportmenedzseri végzettséggel rendelkező sportvezető és sportszakember. Közel három évtizedes tapasztalattal rendelkezem a sport világában. Jelenleg a Magyar Darts Szövetség alelnöke vagyok, ahol célom a sportág strukturált fejlesztése, az utánpótlás-nevelés erősítése.",
+      image: null // Image not provided in recent update
+    },
   ]
 
   return (
@@ -21,12 +35,12 @@ export default function BoardPage() {
       </section>
 
       <div className="container mx-auto px-4 py-12">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className=" justify-around">
           {members.map((member, i) => (
             <Card key={i} className="bg-navy border-navy-lighter text-center">
               <CardHeader>
                 <Avatar className="w-24 h-24 mx-auto mb-4 border-2 border-cta">
-                  <AvatarImage src={`https://i.pravatar.cc/150?u=${i}`} />
+                  <AvatarImage src={member.image || "/instrukturok/placeholder.png"} />
                   <AvatarFallback>{member.name[0]}</AvatarFallback>
                 </Avatar>
                 <CardTitle className="text-white">{member.name}</CardTitle>

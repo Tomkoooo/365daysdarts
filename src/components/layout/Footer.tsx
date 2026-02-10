@@ -9,26 +9,15 @@ export function Footer() {
       <div className="border-b border-navy-lighter bg-navy-darker/50">
         <div className="container mx-auto px-4 py-8">
             <h4 className="text-sm font-semibold text-gray-400 mb-6 text-center uppercase tracking-wider">Partnereink</h4>
-            <div className="grid grid-cols-3 md:grid-cols-9 gap-4 items-center justify-items-center opacity-70">
-                {/* Placeholders for 9 logos - Dark blue background, white logo style requested */}
-                {Array.from({ length: 9 }).map((_, i) => (
-                    <div key={i} className="h-12 w-full bg-navy/50 border border-white/10 rounded flex items-center justify-center text-xs text-gray-500 hover:text-white hover:border-cta/30 transition-all cursor-default">
-                        Logo {i + 1}
-                    </div>
-                ))}
-                {/* 
-                   Names for reference:
-                   1. Aktív Magyarország
-                   2. Betlehen Gábor Alapkezelő Zrt.
-                   3. Magyar Darts Szövetség
-                   4. Gamecenter
-                   5. Remiz
-                   6. Scolia
-                   7. Sakkmed
-                   8. T-darts
-                   9. DRK
-                */}
-            </div>
+                <div className="flex flex-wrap gap-8 items-center justify-center opacity-80grayscale hover:grayscale-0 transition-all duration-300">
+                    <img src="/instrukturok/aktiv-magyarorszag-logo (1).png" alt="Aktív Magyarország" className="h-12 w-auto object-contain" />
+                    <img src="/instrukturok/bethlen_gabor_alapkezelo_zrt_logo.png" alt="Bethlen Gábor Alapkezelő" className="h-12 w-auto object-contain" />
+                    <img src="/instrukturok/mdsz_logo_vektor.svg" alt="Magyar Darts Szövetség" className="h-16 w-auto object-contain" />
+                    <img src="/instrukturok/Remiz_logo.png" alt="Remiz" className="h-10 w-auto object-contain" />
+                    {/* Scolia logo missing, using placeholder if needed or just skipping */}
+                    <img src="/instrukturok/Sakkmed logo (2).png" alt="Sakkmed" className="h-12 w-auto object-contain" />
+                    <img src="/instrukturok/drk-logo.svg" alt="Dorko" className="h-8 w-auto object-contain" />
+                </div>
         </div>
       </div>
 

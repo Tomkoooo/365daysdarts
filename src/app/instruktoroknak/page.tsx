@@ -23,11 +23,11 @@ export default function InstructorsPage() {
             <p className="text-xl text-gray-300 mb-8 leading-relaxed">
               Válj hivatalos 365daysdarts instruktorrá! Átfogó képzési rendszerünk, online vizsgák és gyakorlati tréningek biztosítják, hogy magas szintű tudást adhass át tanítványaidnak.
             </p>
-            <div className="flex gap-4">
-              <Button size="lg" className="bg-cta hover:bg-cta-hover text-white">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button size="lg" className="bg-cta hover:bg-cta-hover text-white w-full sm:w-auto">
                 Regisztráció a képzésre
               </Button>
-              <Button size="lg" variant="outline" className="text-white border-navy-lighter hover:bg-navy-lighter">
+              <Button size="lg" variant="outline" className="text-white border-navy-lighter hover:bg-navy-lighter w-full sm:w-auto">
                 Már van fiókom: Belépés
               </Button>
             </div>
@@ -63,8 +63,8 @@ export default function InstructorsPage() {
                 desc: "Sikeres vizsgák után megkapod a hivatalos instruktori oklevelet és bekerülsz a regiszterbe."
               }
             ].map((step, i) => (
-              <Card key={i} className="bg-navy border-navy-lighter relative">
-                <div className="absolute -top-4 -left-4 w-8 h-8 bg-cta rounded-full flex items-center justify-center font-bold text-navy">
+              <Card key={i} className="bg-navy border-navy-lighter relative mt-6 md:mt-0">
+                <div className="absolute -top-4 left-4 w-8 h-8 bg-cta rounded-full flex items-center justify-center font-bold text-navy shadow-lg">
                   {i + 1}
                 </div>
                 <CardHeader>

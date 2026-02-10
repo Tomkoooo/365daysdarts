@@ -260,7 +260,7 @@ export default function CoursePlayerClient({
           </div>
 
           {/* 3. Footer / Navigation Buttons */}
-          <div className="h-16 border-t bg-background flex items-center justify-between px-6 flex-shrink-0 z-10">
+          <div className="h-16 border-t bg-background fixed bottom-0 w-full flex items-center justify-between px-6 flex-shrink-0 z-10">
               {viewingMode === 'page' && (
                    <>
                     <Button 

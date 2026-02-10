@@ -1,45 +1,95 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import Image from "next/image"
 
-export default function InstructorsListPage() {
-  const instructors = Array(6).fill(null).map((_, i) => ({
-    name: `Instruktor ${i + 1}`,
-    level: i % 2 === 0 ? "Master Trainer" : "Certified Coach",
-    specialty: i % 3 === 0 ? "Mental Game" : i % 3 === 1 ? "Technika" : "Stratégia",
-    bio: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore."
-  }))
+export default function StaffPage() {
+  const staff = [
+    {
+      name: "Balázs-Treszner Tímea (Timi)",
+      role: "Instruktor képzés",
+      bio: "Pedagógiai diplomával rendelkező egészségügyi és fitness szakember. Szakmai alapjaimat a Pécsi Tudományegyetemen, a Semmelweis Egyetemen és a Kodolányi János Főiskolán szereztem. Jelenleg meditációs coachként a légzésterápia eszközeivel nyújtok segítséget a stressz kezelésben.",
+      image: "/instrukturok/BalazsTresznerTimeaoktato.jpg"
+    },
+    {
+      name: "Bodó Balázs",
+      role: "Instruktor képzés",
+      bio: "Tapasztalt szakember az instruktor képzés területén.",
+      image: null // No image provided
+    },
+    {
+      name: "Balázs Gábor",
+      role: "MDSZ Elnök, Alapító",
+      bio: "Közgazdász, sportmenedzser, a Magyar Darts Szövetség elnöke. A Magyar Darts Akadémia Alapítvány társalapítója. Célom a tudás alapú sportágfejlesztés és egy magas szintű szakmai központ működtetése.",
+      image: "/instrukturok/602977677_33335356592745099_2402076347139985134_n.jpg"
+    },
+    {
+      name: "Rucska József",
+      role: "Instruktor képzés és edző",
+      bio: "2022 óta főállású darts versenyzőként és edzőként tevékenykedem. 28-szoros válogatott, magyar bajnok, Magyar Kupa győztes. Ihász Veronika felkészítésében 15 éve veszek részt edzőként.",
+      image: "/instrukturok/Rucska Jozsef.jpg"
+    },
+    {
+      name: "Kovács István (ISU)",
+      role: "Instruktor képzés és edző",
+      bio: "Testnevelő tanár, középfokú atlétika edző. A Szolnoki Baglyok Darts Klub alapítója. 2017 óta foglalkozom utánpótlás korú versenyzőkkel, többek között Kovács Tamara Európa-bajnok felkészítője.",
+      image: "/instrukturok/István Kovács - Boys manager.jpg" 
+    },
+    {
+      name: "Veress Gréta",
+      role: "Versenyszervező, digitális tartalomkészítő",
+      bio: "Több mint 10 éve része az életemnek a darts. Dolgoztam a Magyar Darts Szövetségnél versenyszervezésben. Jelenleg a csapatot social média oldalon erősítem.",
+      image: "/instrukturok/Veress Gréta.jpeg"
+    },
+    {
+      name: "Szonja",
+      role: "Digitális tartalomkészítő",
+      bio: "Kreatív tartalomkészítő, a digitális megjelenésért felelős.",
+      image: null // No image provided
+    },
+    {
+      name: "Neumajer Kitti",
+      role: "Instruktor képzés, digitális tartalomkészítő",
+      bio: "Háromszoros ifjúsági Európa-bajnok és világbajnoki bronzérmes. Jelenleg a Magyar Darts Szövetség operatív igazgatója. Célom, hogy a megszerzett tapasztalataimat az oktatásban és mentorálásban is továbbadjam.",
+      image: "/instrukturok/Kitti Neumajer - Girls manager.jpg"
+    }
+  ]
 
   return (
     <div className="min-h-screen bg-background pb-20">
       <section className="bg-navy-darker py-16 border-b border-navy-lighter">
         <div className="container mx-auto px-4 text-center">
-          <h1 className="text-4xl font-bold text-white mb-4">Oktatók Bemutatása</h1>
+          <h1 className="text-4xl font-bold text-white mb-4">Stáb</h1>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Hivatalos 365daysdarts instruktoraink, akik segítenek a fejlődésben.
+            Ismerd meg a 365daysdarts csapatát, akik a képzésekért, versenyekért és a tartalomért felelnek.
           </p>
         </div>
       </section>
 
       <div className="container mx-auto px-4 py-12">
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {instructors.map((inst, i) => (
-            <Card key={i} className="bg-navy border-navy-lighter overflow-hidden hover:border-cta/50 transition-colors">
-              <div className="h-48 bg-navy-lighter w-full relative">
-                 {/* Placeholder for photo */}
-                 <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-                    Fotó Helye
-                 </div>
+          {staff.map((member, i) => (
+            <Card key={i} className="bg-navy border-navy-lighter overflow-hidden hover:border-cta/50 transition-colors flex flex-col">
+              <div className="h-64 bg-navy-lighter w-full relative shrink-0">
+                 {member.image ? (
+                   <Image 
+                     src={member.image} 
+                     alt={member.name}
+                     fill
+                     className="object-cover object-center"
+                   />
+                 ) : (
+                   <div className="absolute inset-0 flex items-center justify-center text-gray-500 bg-navy-lighter">
+                      Nincs fotó
+                   </div>
+                 )}
               </div>
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 className="text-xl font-bold text-white">{inst.name}</h3>
-                        <p className="text-cta text-sm">{inst.level}</p>
-                    </div>
-                    <Badge variant="outline" className="border-gray-600 text-gray-400">{inst.specialty}</Badge>
+              <CardContent className="p-6 flex flex-col flex-1">
+                <div className="mb-4">
+                    <h3 className="text-xl font-bold text-white mb-1">{member.name}</h3>
+                    <p className="text-cta text-sm font-medium">{member.role}</p>
                 </div>
                 <p className="text-gray-400 text-sm leading-relaxed">
-                    {inst.bio}
+                    {member.bio}
                 </p>
               </CardContent>
             </Card>
