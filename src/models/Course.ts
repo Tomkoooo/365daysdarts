@@ -15,6 +15,11 @@ const CourseSchema = new Schema({
       questionCount: { type: Number, default: 20 },
       timeLimit: { type: Number, default: 60 }, // in minutes
       maxRetries: { type: Number, default: 3 }, 
+      structure: {
+        mode: { type: String, enum: ['legacy', 'per_module', 'per_chapter'], default: 'legacy' },
+        moduleCounts: [{ moduleId: Schema.Types.ObjectId, count: Number }],
+        chapterCounts: [{ chapterId: Schema.Types.ObjectId, count: Number }]
+      }
   }
 }, { timestamps: true });
 

@@ -10,6 +10,8 @@ import { PageEditor } from "@/components/lecturer/PageEditor"
 import { ModuleSettings } from "@/components/lecturer/ModuleSettings"
 import { QuestionManager } from "@/components/lecturer/QuestionManager"
 import { FinalExamSettings } from "@/components/lecturer/FinalExamSettings"
+import { ExcelUploadModal } from "@/components/lecturer/ExcelUploadModal"
+import { CourseQuestionManager } from "@/components/lecturer/CourseQuestionManager"
 import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upload, Loader2, Database, Video, BookOpen, Eye, FileQuestion, GraduationCap, Pencil, ChevronUp, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogContent, DialogTrigger } from "@/components/ui/dialog"
@@ -32,7 +34,10 @@ export default function CourseEditorPage() {
   const [editingModule, setEditingModule] = useState<any>(null)
   const [viewingQuestions, setViewingQuestions] = useState<any>(null)
   const [editingFinalExam, setEditingFinalExam] = useState(false)
+
+  const [isUploading, setIsUploading] = useState(false)
   const [isPreviewing, setIsPreviewing] = useState(false)
+  const [managingQuestions, setManagingQuestions] = useState(false)
 
   // Quick inputs state
   const [newModuleTitle, setNewModuleTitle] = useState("")
@@ -352,6 +357,12 @@ export default function CourseEditorPage() {
                              <Button variant="outline" className="w-full justify-start" onClick={() => setEditingFinalExam(true)}>
                                 <GraduationCap className="mr-2 h-4 w-4" /> Záróvizsga
                             </Button>
+                            <Button variant="outline" className="w-full justify-start mt-2" onClick={() => setIsUploading(true)}>
+                                <Upload className="mr-2 h-4 w-4" /> Kérdések Importálása
+                            </Button>
+                            <Button variant="outline" className="w-full justify-start mt-2" onClick={() => setManagingQuestions(true)}>
+                                <Database className="mr-2 h-4 w-4" /> Kérdésbank Kezelése
+                            </Button>
                         </CardContent>
                     </Card>
                 </div>
@@ -391,6 +402,21 @@ export default function CourseEditorPage() {
              />
         )}
         
+        {isUploading && (
+            <ExcelUploadModal 
+                courseId={course._id}
+                onClose={() => setIsUploading(false)}
+                onSuccess={() => loadCourse()}
+            />
+        )}
+
+        {managingQuestions && (
+            <CourseQuestionManager 
+                course={course}
+                onClose={() => setManagingQuestions(false)}
+            />
+        )}
+
         {/* Rename Dialog */}
         <Dialog open={!!renamingPage} onOpenChange={(open) => !open && setRenamingPage(null)}>
             <DialogContent>

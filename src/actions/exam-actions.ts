@@ -129,13 +129,11 @@ export async function startFinalExam(courseId: string) {
 
   // Check if all modules are completed
   const completedModules = courseProgress.completedModules || [];
-  console.log(`[startFinalExam] Checking modules for course ${courseId}. User has completed:`, completedModules);
   
   // Robust check: compare as strings
   const allModulesPassed = course.modules.every((m: any) => {
       const mId = m._id ? m._id.toString() : m.toString();
       const isDone = completedModules.includes(mId);
-      console.log(`[startFinalExam] Module ${mId} status: ${isDone ? 'PASSED' : 'NOT PASSED'}`);
       return isDone;
   });
   
@@ -157,81 +155,87 @@ export async function startFinalExam(courseId: string) {
     completedAt: null
   });
 
-  // 3. Balanced Question Generation
+  // 3. Question Generation Logic
   const modules = course.modules || [];
   if (modules.length === 0) return { error: "HIBA: Ehhez a kurzushoz nincsenek modulok rendelve." };
 
-  // Safe module ID extraction
-  const moduleIds = modules.map((m: any) => {
-    try {
-        if (m && typeof m === 'object' && m._id) return m._id.toString();
-        if (m) return m.toString();
-        return null;
-    } catch (e) {
-        return null;
-    }
-  }).filter((id: string | null) => id !== null) as string[];
+  let finalQuestions: any[] = [];
+  const mode = settings.structure?.mode || 'legacy';
 
-  console.log(`[startFinalExam] Extracted Module IDs for course ${courseId}:`, moduleIds);
-
-  const objectIdModuleIds = moduleIds.map((id: string) => {
-      try {
-          return new mongoose.Types.ObjectId(id);
-      } catch (e) {
-          console.error(`[startFinalExam] Invalid ObjectId format: ${id}`);
-          return null;
+  if (mode === 'per_module') {
+      const counts = settings.structure?.moduleCounts || [];
+      for (const item of counts) {
+          if (item.count > 0) {
+              const questions = await Question.aggregate([
+                  { $match: { moduleId: new mongoose.Types.ObjectId(item.moduleId) } },
+                  { $sample: { size: item.count } }
+              ]);
+              finalQuestions = [...finalQuestions, ...questions];
+          }
       }
-  }).filter(id => id !== null);
+  } else if (mode === 'per_chapter') {
+      const counts = settings.structure?.chapterCounts || [];
+      for (const item of counts) {
+          if (item.count > 0) {
+              const questions = await Question.aggregate([
+                  { $match: { chapterId: new mongoose.Types.ObjectId(item.chapterId) } },
+                  { $sample: { size: item.count } }
+              ]);
+              finalQuestions = [...finalQuestions, ...questions];
+          }
+      }
+  } else {
+      // LEGACY / BALANCED
+      const moduleIds = modules.map((m: any) => m._id ? m._id.toString() : m.toString());
+      const objectIdModuleIds = moduleIds.map((id: string) => new mongoose.Types.ObjectId(id));
+      
+      const allPoolQuestions = await Question.find({ 
+          moduleId: { $in: objectIdModuleIds } 
+      }).lean();
 
-  // Fetch ALL questions from these modules first
-  const allPoolQuestions = await Question.find({ 
-      moduleId: { $in: objectIdModuleIds } 
-  }).lean();
+      if (allPoolQuestions.length === 0) {
+           return { error: "HIBA: Nincsenek kérdések." };
+      }
 
-  console.log(`[startFinalExam] Found ${allPoolQuestions.length} total questions in ${moduleIds.length} modules.`);
+      if (allPoolQuestions.length <= settings.questionCount) {
+          finalQuestions = allPoolQuestions;
+      } else {
+          const byModule: Record<string, any[]> = {};
+          moduleIds.forEach((id: string) => { byModule[id] = []; });
+          allPoolQuestions.forEach((q: any) => {
+              const mId = q.moduleId?.toString();
+              if (mId && byModule[mId]) byModule[mId].push(q);
+          });
 
-  if (allPoolQuestions.length === 0) {
-      return { error: "HIBA: Ehhez a kurzushoz egyetlen modulban sincsenek kérdések feltöltve. Kérlek adj hozzá több kérdést!" };
+          const countPerModule = Math.floor(settings.questionCount / moduleIds.length);
+          const remainderInitial = settings.questionCount % moduleIds.length;
+          let extraNeeded = 0;
+
+          moduleIds.forEach((mId: string, i: number) => {
+              const pool = byModule[mId];
+              const targetSize = countPerModule + (i < remainderInitial ? 1 : 0);
+              
+              if (pool.length <= targetSize) {
+                  finalQuestions = [...finalQuestions, ...pool];
+                  extraNeeded += (targetSize - pool.length);
+              } else {
+                  const sampled = pool.sort(() => 0.5 - Math.random()).slice(0, targetSize);
+                  finalQuestions = [...finalQuestions, ...sampled];
+              }
+          });
+
+          if (extraNeeded > 0) {
+              const currentIds = new Set(finalQuestions.map(q => q._id.toString()));
+              const availableFallback = allPoolQuestions.filter(q => !currentIds.has(q._id.toString()));
+              const extraSample = availableFallback.sort(() => 0.5 - Math.random()).slice(0, extraNeeded);
+              finalQuestions = [...finalQuestions, ...extraSample];
+          }
+      }
   }
 
-  let finalQuestions: any[] = [];
-  
-  if (allPoolQuestions.length <= settings.questionCount) {
-      // If total pool is smaller or equal to target, take everything
-      finalQuestions = allPoolQuestions;
-  } else {
-      // Balanced sampling logic
-      const byModule: Record<string, any[]> = {};
-      moduleIds.forEach((id: string) => { byModule[id] = []; });
-      allPoolQuestions.forEach((q: any) => {
-          const mId = q.moduleId?.toString();
-          if (mId && byModule[mId]) byModule[mId].push(q);
-      });
-
-      const countPerModule = Math.floor(settings.questionCount / moduleIds.length);
-      const remainderInitial = settings.questionCount % moduleIds.length;
-      let extraNeeded = 0;
-
-      moduleIds.forEach((mId: string, i: number) => {
-          const pool = byModule[mId];
-          const targetSize = countPerModule + (i < remainderInitial ? 1 : 0);
-          
-          if (pool.length <= targetSize) {
-              finalQuestions = [...finalQuestions, ...pool];
-              extraNeeded += (targetSize - pool.length);
-          } else {
-              const sampled = pool.sort(() => 0.5 - Math.random()).slice(0, targetSize);
-              finalQuestions = [...finalQuestions, ...sampled];
-          }
-      });
-
-      // Fill gaps if some modules were under-represented
-      if (extraNeeded > 0) {
-          const currentIds = new Set(finalQuestions.map(q => q._id.toString()));
-          const availableFallback = allPoolQuestions.filter(q => !currentIds.has(q._id.toString()));
-          const extraSample = availableFallback.sort(() => 0.5 - Math.random()).slice(0, extraNeeded);
-          finalQuestions = [...finalQuestions, ...extraSample];
-      }
+  // Common: Check if we have questions
+  if (finalQuestions.length === 0) {
+      return { error: "HIBA: Nem sikerült kérdéseket generálni. Ellenőrizze a beállításokat vagy a kérdésbankot." };
   }
 
   // Shuffle final selection
@@ -244,8 +248,6 @@ export async function startFinalExam(courseId: string) {
   }));
 
   if (activeExam) {
-       // On resume, we return the SAME record but refresh the questions (as we don't store them)
-       // This is a sacrifice to avoid db schema migration now, but ensures it WORKS.
        return { 
            examId: activeExam._id.toString(), 
            questions: formattedQuestions, 
