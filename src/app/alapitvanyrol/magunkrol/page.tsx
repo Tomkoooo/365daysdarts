@@ -9,55 +9,85 @@ export default function AboutPage() {
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl font-bold text-white mb-4">Rólunk</h1>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            A 365daysdarts Alapítvány küldetése, víziója és története.
+            A Magyar Darts Akadémia Alapítvány története és küldetése.
           </p>
         </div>
       </section>
 
       <div className="container mx-auto px-4 py-12 space-y-20">
-        {/* Mission */}
-        <div className="grid md:grid-cols-2 gap-12 items-center">
+        
+        {/* MDAA BEMUTATKOZÓ */}
+        <div className="grid md:grid-cols-2 gap-12 items-start">
           <div className="space-y-6">
-            <div className="inline-flex items-center rounded-full bg-cta/10 px-3 py-1 text-sm text-cta border border-cta/20">
-              Küldetésünk
+            <h2 className="text-3xl font-bold text-white">Bemutatkozás</h2>
+            <div className="space-y-4 text-gray-300 leading-relaxed text-lg">
+              <p>
+                A Magyar Darts Akadémia Alapítványt alapítóink - <strong>Balázs Gábor</strong> és <strong>Tekauer Norbert</strong> - 2021-ben azzal a céllal hozták létre, 
+                hogy a darts sportot Magyarországon minél szélesebb körben megismertesse és népszerűsítse, valamint hogy a sportág iránt 
+                érdeklődő és elhivatott játékosok számára folyamatos játék- és versenyzési lehetőségeket biztosítson.
+              </p>
+              <p>
+                Az alapítvány szakmai munkáját szoros együttműködésben végzi a <strong>Magyar Darts Szövetséggel</strong>, mint sportszakmai irányító 
+                szervezettel, valamint a hazai darts egyesületekkel. Ennek az együttműködésnek köszönhetően tevékenységünk stabil szakmai 
+                alapokon nyugszik, és hosszú távon is fenntartható fejlődést biztosít a sportág számára.
+              </p>
+              <p>
+                Éves szinten kiemelt figyelmet fordítunk arra, hogy minél több eseményt és versenyt szervezzünk amatőr, fiatal, valamint sérült 
+                játékosok számára is, lehetőséget adva számukra a fejlődésre és akár a versenyzői szintre való továbblépésre.
+              </p>
             </div>
-            <h2 className="text-3xl font-bold text-white">A Darts Mindenkié</h2>
-            <p className="text-gray-300 leading-relaxed">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-            </p>
-            <p className="text-gray-300 leading-relaxed">
-              Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-            </p>
           </div>
-          <div className="bg-navy p-8 rounded-2xl border border-navy-lighter flex items-center justify-center min-h-[300px]">
-            <Target className="h-32 w-32 text-navy-lighter" />
+          
+          <div className="bg-navy p-8 rounded-2xl border border-navy-lighter text-gray-300 space-y-4">
+             <p>
+                Elsődleges célcsoportunk a fiatal utánpótlás korosztály, valamint az aktív versenyzéstől már visszavonult, de a sportág iránt továbbra is 
+                elkötelezett játékosok. Ugyanakkor amatőr versenyeink széles korosztályt szólítanak meg, amely jelentős közösségépítő erőt képvisel.
+             </p>
+             <p>
+                A Magyar Darts Szövetséggel együttműködve, állandó klubhelyszínünkön a <strong>Remiz Event</strong> rendezvénytermében éves 
+                szinten közel 60 darts versenyt és eseményt valósítunk meg. Emellett az elmúlt években sikeresen elindítottuk amatőr 
+                versenysorozatunkat, a <strong>Diamonds Cup</strong>-ot, amelyre minden darts iránt érdeklődőt szeretettel vár a Magyar Darts Akadémia Alapítvány.
+             </p>
           </div>
         </div>
 
-        {/* Vision */}
-        <div className="grid md:grid-cols-2 gap-12 items-center md:flex-row-reverse">
-          <div className="bg-navy p-8 rounded-2xl border border-navy-lighter flex items-center justify-center min-h-[300px] md:order-1">
-            <Heart className="h-32 w-32 text-navy-lighter" />
-          </div>
-          <div className="space-y-6 md:order-2">
-            <div className="inline-flex items-center rounded-full bg-purple-500/10 px-3 py-1 text-sm text-purple-400 border border-purple-500/20">
-              Vízió
+        {/* ALAPÍTÓI KÜLDETÉS NYILATKOZAT */}
+        <div className="bg-navy-darker rounded-3xl p-8 md:p-12 border border-navy-lighter relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-cta/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+            
+            <div className="relative z-10 max-w-4xl mx-auto text-center space-y-8">
+                <div className="inline-block px-4 py-1 rounded-full bg-cta/10 text-cta border border-cta/20 text-sm font-semibold tracking-wider uppercase">
+                    Alapítói Küldetés Nyilatkozat
+                </div>
+                
+                <h2 className="text-3xl md:text-4xl font-bold text-white">
+                    Balázs Gábor & Tekauer Norbert
+                </h2>
+
+                <div className="text-xl text-gray-300 leading-relaxed italic">
+                    "A Magyar Darts Akadémia Alapítvány küldetése, hogy a darts sportot nyitott, befogadó és közösségformáló tevékenységként képviselje Magyarországon."
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-8 text-left text-gray-400 mt-8">
+                    <p>
+                        Célunk, hogy minden korosztály és képesség számára elérhetővé tegyük a darts nyújtotta sportolási és közösségi élményt, különös 
+                        hangsúlyt fektetve az utánpótlás-nevelésre, az amatőr sport támogatására, valamint a hátrányos helyzetű és sérült játékosok bevonására.
+                    </p>
+                    <p>
+                        Hiszünk abban, hogy a darts nem csupán versenysport, hanem egy olyan közösségépítő eszköz, amely fejleszti a koncentrációt, az 
+                        önfegyelmet és a sportszerűséget, miközben baráti és támogató közeget teremt a résztvevők számára.
+                    </p>
+                </div>
+                
+                <div className="pt-8 border-t border-navy-lighter">
+                    <p className="text-gray-400">
+                        Küldetésünk megvalósítása érdekében hosszú távú, szakmailag megalapozott együttműködésre törekszünk a <strong>Magyar Darts Szövetséggel</strong>, 
+                        az egyesületekkel és minden olyan partnerrel, aki osztja értékeinket, és tenni kíván a magyar darts jövőjéért.
+                    </p>
+                </div>
             </div>
-            <h2 className="text-3xl font-bold text-white">Egy Támogató Közösség</h2>
-            <p className="text-gray-300 leading-relaxed">
-              Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-            </p>
-          </div>
         </div>
 
-        {/* History timeline teaser */}
-        <div className="text-center max-w-3xl mx-auto space-y-8">
-          <History className="h-12 w-12 text-cta mx-auto" />
-          <h2 className="text-3xl font-bold text-white">Történetünk</h2>
-          <p className="text-gray-300">
-            2020-ban indultunk egy kis baráti társaságból, mára pedig az ország egyik legnagyobb darts oktatási központjává nőttük ki magunkat.
-          </p>
-        </div>
       </div>
     </div>
   )

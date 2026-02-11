@@ -75,7 +75,7 @@ export default function StaffPage() {
                      src={member.image} 
                      alt={member.name}
                      fill
-                     className="object-cover object-center"
+                     className="object-contain object-center"
                    />
                  ) : (
                    <div className="absolute inset-0 flex items-center justify-center text-gray-500 bg-navy-lighter">

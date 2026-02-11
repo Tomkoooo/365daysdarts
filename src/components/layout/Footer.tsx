@@ -9,7 +9,7 @@ export function Footer() {
       <div className="border-b border-navy-lighter bg-navy-darker/50">
         <div className="container mx-auto px-4 py-8">
             <h4 className="text-sm font-semibold text-gray-400 mb-6 text-center uppercase tracking-wider">Partnereink</h4>
-                <div className="flex flex-wrap gap-8 items-center justify-center opacity-80grayscale hover:grayscale-0 transition-all duration-300">
+                <div className="flex flex-wrap gap-8 items-center justify-center opacity-80 grayscale hover:grayscale-0 transition-all duration-300">
                     <img src="/instrukturok/aktiv-magyarorszag-logo (1).png" alt="Aktív Magyarország" className="h-12 w-auto object-contain" />
                     <img src="/instrukturok/bethlen_gabor_alapkezelo_zrt_logo.png" alt="Bethlen Gábor Alapkezelő" className="h-12 w-auto object-contain" />
                     <img src="/instrukturok/mdsz_logo_vektor.svg" alt="Magyar Darts Szövetség" className="h-16 w-auto object-contain" />
@@ -17,6 +17,7 @@ export function Footer() {
                     {/* Scolia logo missing, using placeholder if needed or just skipping */}
                     <img src="/instrukturok/Sakkmed logo (2).png" alt="Sakkmed" className="h-12 w-auto object-contain" />
                     <img src="/instrukturok/drk-logo.svg" alt="Dorko" className="h-8 w-auto object-contain" />
+                    <img src="/instrukturok/tdarts_logo.svg" alt="T-Darts" className="h-10 w-auto object-contain" />
                 </div>
         </div>
       </div>
