@@ -104,7 +104,7 @@ export function PDFViewer({ url, pageIndex = 1 }: PDFViewerProps) {
   }, [url, pageIndex]);
 
   return (
-    <div ref={containerRef} className="w-full h-full flex flex-col items-center bg-zinc-50 rounded-lg shadow-sm overflow-y-auto border relative min-h-[400px]">
+    <div ref={containerRef} className="w-full  flex flex-col items-center justify-center rounded-lg shadow-sm overflow-y-auto border relative min-h-[400px]">
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10 transition-opacity">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />

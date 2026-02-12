@@ -136,17 +136,17 @@ export default function CoursePlayerClient({
   )
 
   return (
-    <div className={`flex flex-col ${previewMode ? 'flex-1 h-full min-h-0' : 'h-screen'} select-none print:hidden bg-background`}>
+    <div className={`flex flex-col ${previewMode ? 'flex-1 h-full min-h-0' : 'h-[80dvh]'} select-none print:hidden bg-background`}>
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Sidebar */}
-        <div className="hidden md:block h-full border-r w-80 flex-shrink-0 min-h-0">
+        <div className="hidden md:block h-[80dvh] border-r w-80 flex-shrink-0 min-h-0">
           {SidebarContent}
         </div>
 
-        <div className="md:hidden absolute top-20 left-4 z-10">
+        <div className="md:hidden absolute top-[8.75rem] left-4 z-10">
            <Sheet>
              <SheetTrigger asChild>
-               <Button variant="outline" size="icon"><Menu className="h-4 w-4" /></Button>
+                   <Button variant="outline" className="w-32" size="icon"><Menu className="h-4 w-4" /><p>Oldalak</p></Button>
              </SheetTrigger>
              <SheetContent side="left" className="p-0 w-80">
                {SidebarContent}
@@ -200,7 +200,7 @@ export default function CoursePlayerClient({
                         
                         {currentPageData.type === 'pdf' && (
                             <div className="w-full h-full flex items-center justify-center">
-                                <div className="w-full h-full border rounded-lg overflow-hidden shadow-sm bg-background">
+                                <div className="w-full border rounded-lg overflow-hidden shadow-sm bg-background">
                                      <PDFViewer 
                                        url={currentPageData.mediaUrl || "/dummy.pdf"} 
                                        pageIndex={currentPageData.pdfPageIndex} 
@@ -260,7 +260,7 @@ export default function CoursePlayerClient({
           </div>
 
           {/* 3. Footer / Navigation Buttons */}
-          <div className="h-16 border-t bg-background fixed bottom-0 w-full flex items-center justify-between px-6 flex-shrink-0 z-10">
+          <div className="h-16 border-t bg-background w-full flex items-center justify-between px-6 flex-shrink-0 z-10">
               {viewingMode === 'page' && (
                    <>
                     <Button 

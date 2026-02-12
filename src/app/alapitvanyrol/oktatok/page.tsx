@@ -5,7 +5,7 @@ import Image from "next/image"
 export default function StaffPage() {
   const staff = [
     {
-      name: "Balázs-Treszner Tímea (Timi)",
+      name: "Balázs-Treszner Tímea",
       role: "Instruktor képzés",
       bio: "Pedagógiai diplomával rendelkező egészségügyi és fitness szakember. Szakmai alapjaimat a Pécsi Tudományegyetemen, a Semmelweis Egyetemen és a Kodolányi János Főiskolán szereztem. Jelenleg meditációs coachként a légzésterápia eszközeivel nyújtok segítséget a stressz kezelésben.",
       image: "/instrukturok/BalazsTresznerTimeaoktato.jpg"
@@ -29,21 +29,21 @@ export default function StaffPage() {
       image: "/instrukturok/Rucska Jozsef.jpg"
     },
     {
-      name: "Kovács István (ISU)",
+      name: "Kovács István",
       role: "Instruktor képzés és edző",
       bio: "Testnevelő tanár, középfokú atlétika edző. A Szolnoki Baglyok Darts Klub alapítója. 2017 óta foglalkozom utánpótlás korú versenyzőkkel, többek között Kovács Tamara Európa-bajnok felkészítője.",
-      image: "/instrukturok/István Kovács - Boys manager.jpg" 
+      image: "/instrukturok/isu.jpg" 
     },
     {
       name: "Veress Gréta",
       role: "Versenyszervező, digitális tartalomkészítő",
       bio: "Több mint 10 éve része az életemnek a darts. Dolgoztam a Magyar Darts Szövetségnél versenyszervezésben. Jelenleg a csapatot social média oldalon erősítem.",
-      image: "/instrukturok/Veress Gréta.jpeg"
+      image: "/instrukturok/greta.jpeg"
     },
     {
-      name: "Szonja",
+      name: "Szilágyi Szonja",
       role: "Digitális tartalomkészítő",
-      bio: "Kreatív tartalomkészítő, a digitális megjelenésért felelős.",
+      bio: "ELTE PPK sportszervező szakos, jelenleg utolsó féléves hallgatója. A sport iránti elköteleződésem a digitális világban is megmutatkozik: ezen a platformon elsősorban a tananyagok fejlesztéséért és a tartalmi struktúra kialakításáért feleltem. Célom, hogy a sportszakmai tudásomat a digitális tartalomgyártással ötvözve segítsem a darts közösség fejlődését.",
       image: null // No image provided
     },
     {
