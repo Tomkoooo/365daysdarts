@@ -115,6 +115,24 @@ export default function CoursePlayerClient({
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === "PrintScreen") {} // No-op
+        
+        // Keyboard Navigation
+        if (viewingMode === 'page') {
+            const isInput = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName) || (e.target as HTMLElement)?.isContentEditable;
+            if (isInput) return;
+
+            if (e.key === "ArrowRight" || e.key === " ") {
+                if (nextPage) {
+                    e.preventDefault();
+                    handleSelect(nextPage._id);
+                }
+            } else if (e.key === "ArrowLeft") {
+                if (prevPage) {
+                    e.preventDefault();
+                    handleSelect(prevPage._id);
+                }
+            }
+        }
     };
     document.addEventListener("contextmenu", handleContextMenu);
     document.addEventListener("keydown", handleKeyDown);
@@ -122,7 +140,7 @@ export default function CoursePlayerClient({
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("keydown", handleKeyDown);
     }
-  }, []);
+  }, [currentId, viewingMode, prevPage, nextPage]); // Added dependencies for keyboard nav
 
   const SidebarContent = (
     <CourseSidebar 

@@ -13,8 +13,8 @@ export default function StaffPage() {
     {
       name: "Bodó Balázs",
       role: "Instruktor képzés",
-      bio: "Tapasztalt szakember az instruktor képzés területén.",
-      image: null // No image provided
+      bio: "Az alapképzést a Budapesti Gazdasági Egyetem Nemzetközi Kapcsolatok szakán, a mesterképzést a Testnevelési Egyetem Sportmenedzser szakán végezte. Jelenleg is utóbbi intézmény Rekreáció mesterképzés szak hallgatója. Az elmúlt 3 évben a sportirányításban dolgozott, jelenleg a Magyar Darts Szövetség főtitkára",
+      image: "/instrukturok/BB.jpg" // No image provided
     },
     {
       name: "Balázs Gábor",
