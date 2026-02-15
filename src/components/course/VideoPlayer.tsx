@@ -20,7 +20,7 @@ export function VideoPlayer({ url, title }: VideoPlayerProps) {
      // For robust parsing, regex is better but this works for standard share links
 
     return (
-        <div className="aspect-video w-full bg-black rounded-lg overflow-hidden relative">
+        <div className="aspect-video max-w-full max-h-full bg-black rounded-lg overflow-hidden relative shadow-lg">
             <iframe 
                 src={embedUrl} 
                 title={title || "Video player"} 
@@ -33,7 +33,7 @@ export function VideoPlayer({ url, title }: VideoPlayerProps) {
   }
 
   return (
-    <div className="aspect-video w-full bg-black rounded-lg overflow-hidden relative">
+    <div className="aspect-video max-w-full max-h-full bg-black rounded-lg overflow-hidden relative shadow-lg">
       <video 
         src={url} 
         controls 

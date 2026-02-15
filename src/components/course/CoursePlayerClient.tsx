@@ -7,7 +7,7 @@ import { VideoPlayer } from "@/components/course/VideoPlayer"
 import { PDFViewer } from "@/components/course/PDFViewer"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Menu, ChevronLeft, ChevronRight, CheckCircle } from "lucide-react"
+import { Menu, ChevronLeft, ChevronRight, CheckCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { ModuleExamRunner } from "@/components/course/ModuleExamRunner"
 import { FinalExamRunner } from "@/components/course/FinalExamRunner"
@@ -40,6 +40,7 @@ export default function CoursePlayerClient({
   const [userProgress, setUserProgress] = useState(progress);
   const [loading, setLoading] = useState(false);
   const [imgLoading, setImgLoading] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Flatten pages for easy navigation
   const allPages: any[] = [];
@@ -153,15 +154,32 @@ export default function CoursePlayerClient({
     />
   )
 
+  // Hide site footer on mount
+  useEffect(() => {
+    const footer = document.querySelector('footer');
+    if (footer) footer.style.display = 'none';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      if (footer) footer.style.display = 'block';
+      document.body.style.overflow = 'auto';
+    }
+  }, []);
+
   return (
-    <div className={`flex flex-col ${previewMode ? 'flex-1 h-full min-h-0' : 'h-[80dvh]'} select-none print:hidden bg-background`}>
-      <div className="flex flex-1 overflow-hidden min-h-0">
+    <div className={`flex flex-col ${previewMode ? 'flex-1 h-full min-h-0' : 'h-[calc(100dvh-64px)]'} select-none print:hidden bg-background overflow-hidden`}>
+      <div className="flex flex-1 overflow-hidden min-h-0 relative">
         {/* Sidebar */}
-        <div className="hidden md:block h-[80dvh] border-r w-80 flex-shrink-0 min-h-0">
-          {SidebarContent}
+        <div 
+          className={`hidden md:block border-r flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden ${
+            isSidebarOpen ? 'w-80 opacity-100' : 'w-0 opacity-0 border-none'
+          }`}
+        >
+          <div className="w-80 h-full"> 
+            {SidebarContent}
+          </div>
         </div>
 
-        <div className="md:hidden absolute top-[8.75rem] left-4 z-10">
+        <div className="md:hidden absolute top-[5rem] left-4 z-20">
            <Sheet>
              <SheetTrigger asChild>
                    <Button variant="outline" className="w-32" size="icon"><Menu className="h-4 w-4" /><p>Oldalak</p></Button>
@@ -176,19 +194,37 @@ export default function CoursePlayerClient({
         <main className="flex-1 flex flex-col h-full overflow-hidden relative">
           
           {/* 1. Header / Breadcrumbs */}
-          <div className="h-16 border-b flex items-center px-6 bg-muted/5 flex-shrink-0">
-             {viewingMode === 'page' && currentPageData ? (
-                 <div className="flex flex-col">
-                     <div className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">
-                         {currentPageData.moduleTitle} <span className="mx-1">/</span> {currentPageData.chapterTitle}
-                     </div>
-                     <h2 className="text-lg font-bold truncate">{currentPageData.title}</h2>
-                 </div>
-             ) : (
-                <div className="text-lg font-bold">
-                    {viewingMode === 'exam' ? 'Modulzáró vizsga' : viewingMode === 'final-exam' ? 'Záróvizsga' : 'Kurzus Tartalom'}
-                </div>
-             )}
+          <div className="h-16 border-b flex items-center justify-between px-6 bg-muted/5 flex-shrink-0">
+             <div className="flex items-center gap-4 overflow-scroll">
+                <Button 
+                   variant="ghost" 
+                   size="icon" 
+                   className="hidden md:flex text-muted-foreground hover:text-cta"
+                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                   title={isSidebarOpen ? "Menü elrejtése" : "Menü felfedése"}
+                >
+                    {isSidebarOpen ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
+                </Button>
+
+                {viewingMode === 'page' && currentPageData ? (
+                    <div className="flex flex-col min-w-0 overflow-x-auto scrollbar-hide flex-1">
+                        <div className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide font-semibold whitespace-nowrap">
+                            {currentPageData.moduleTitle} <span className="mx-1">/</span> {currentPageData.chapterTitle}
+                        </div>
+                        <h2 className="text-sm md:text-lg font-bold whitespace-nowrap">
+                            {currentPageData.title}
+                        </h2>
+                    </div>
+                ) : (
+                    <div className="text-sm md:text-lg font-bold">
+                        {viewingMode === 'exam' ? 'Modulzáró vizsga' : viewingMode === 'final-exam' ? 'Záróvizsga' : 'Kurzus Tartalom'}
+                    </div>
+                )}
+             </div>
+
+             <div className="flex items-center gap-2">
+                {/* Optional stats or other info can go here */}
+             </div>
           </div>
 
           {/* 2. Content Area - Fixed Height, No Scroll */}
@@ -209,10 +245,8 @@ export default function CoursePlayerClient({
                     <div className="flex-1 flex flex-col min-h-0 w-full h-full"> 
                         {/* Content Renders */}
                         {currentPageData.type === 'video' && (
-                            <div className="w-full h-full flex items-center justify-center">
-                                <div className="aspect-video w-full max-h-full bg-black rounded-lg overflow-hidden shadow-lg">
-                                    <VideoPlayer url={currentPageData.mediaUrl || ""} />
-                                </div>
+                            <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                                <VideoPlayer url={currentPageData.mediaUrl || ""} />
                             </div>
                         )}
                         

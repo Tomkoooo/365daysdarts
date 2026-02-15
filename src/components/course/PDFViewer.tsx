@@ -55,10 +55,14 @@ export function PDFViewer({ url, pageIndex = 1 }: PDFViewerProps) {
         if (!container || !canvas) return;
 
         const viewport = page.getViewport({ scale: 1 });
-        const containerWidth = container.clientWidth;
+        const containerWidth = container.clientWidth - 32; // padding
+        const containerHeight = container.clientHeight - 32; // padding
         
-        // Scale to fit width
-        const scale = (containerWidth / viewport.width);
+        // Scale to fit both dimensions
+        const scaleW = containerWidth / viewport.width;
+        const scaleH = containerHeight / viewport.height;
+        const scale = Math.min(scaleW, scaleH);
+        
         const scaledViewport = page.getViewport({ scale });
 
         canvas.height = scaledViewport.height;
