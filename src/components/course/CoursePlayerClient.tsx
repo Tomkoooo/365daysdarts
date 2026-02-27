@@ -119,7 +119,8 @@ export default function CoursePlayerClient({
         
         // Keyboard Navigation
         if (viewingMode === 'page') {
-            const isInput = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName) || (e.target as HTMLElement)?.isContentEditable;
+            const target = e.target as HTMLElement;
+            const isInput = ['INPUT', 'TEXTAREA', 'VIDEO'].includes(target?.tagName) || target?.isContentEditable || target?.closest('video');
             if (isInput) return;
 
             if (e.key === "ArrowRight" || e.key === " ") {

@@ -38,7 +38,11 @@ export function VideoPlayer({ url, title }: VideoPlayerProps) {
         src={url} 
         controls 
         controlsList="nodownload" 
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain pointer-events-auto select-auto"
+        onPlay={(e) => e.stopPropagation()}
+        onPause={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        style={{ pointerEvents: 'auto', userSelect: 'auto' }}
       >
         Your browser does not support the video tag.
       </video>
