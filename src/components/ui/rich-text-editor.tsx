@@ -70,6 +70,9 @@ export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>
             });
 
             quillRef.current = quillInstance;
+            quillInstance.root.style.color = "#ffffff";
+            quillInstance.root.style.minHeight = "360px";
+            quillInstance.root.style.backgroundColor = "transparent";
             
             // Set initial value
             if (value) {
@@ -101,7 +104,7 @@ export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>
   }, [value]);
 
   return (
-    <div className="bg-background text-foreground text-black flex flex-col" ref={containerRef}> 
+    <div className="bg-background text-foreground flex flex-col" ref={containerRef}> 
       {/* Explicit Toolbar Container */}
       <div ref={toolbarRef}>
           {/* Default buttons configuration structure matching Quill's expectation involved? 
@@ -149,7 +152,7 @@ export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>
           </span>
       </div>
       
-      <div ref={editorRef} className="h-[300px] mb-12 text-black" />
+      <div ref={editorRef} className="h-[420px] mb-12 text-white" />
     </div>
   );
 });

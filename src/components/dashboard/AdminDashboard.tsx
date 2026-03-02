@@ -110,6 +110,9 @@ export default function AdminDashboard() {
              <Button variant="outline" onClick={() => setViewMode('student')}>Tanuló Nézet</Button>
              <Button variant="outline" onClick={() => setViewMode('lecturer')}>Oktató Nézet</Button>
              <Button variant="outline" onClick={() => setViewMode('business')}>Üzleti Nézet</Button>
+             <Button variant="outline" asChild>
+                <Link href="/dashboard/content">CMS Tartalom</Link>
+             </Button>
              <Button asChild>
                 <Link href="/lecturer/courses/new">Új Kurzus Létrehozása</Link>
              </Button>
