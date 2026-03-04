@@ -45,6 +45,7 @@ export function CourseSidebar({
     onModuleExamSelect 
 }: CourseSidebarProps) {
     const completedModules = progress.completedModules || [];
+    const completedPages = progress.completedPages || [];
     const allModulesCompleted = modules.every((m: any) => completedModules.includes(m._id.toString()));
   return (
     <div className="w-full h-full flex flex-col bg-background min-h-0">
@@ -69,6 +70,7 @@ export function CourseSidebar({
                           </div>
                           {chapter.pages && chapter.pages.map((page: any) => {
                             const isActive = currentLectureId === page._id;
+                            const isCompleted = completedPages.includes(page._id.toString());
                             return (
                              <button 
                                 key={page._id} 
@@ -78,7 +80,7 @@ export function CourseSidebar({
                                   isActive && "bg-muted text-primary font-medium"
                                 )}
                              >
-                                {page.completed ? (
+                                {isCompleted ? (
                                   <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
                                 ) : (
                                   page.type === 'video' ? <PlayCircle className="w-4 h-4 shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />

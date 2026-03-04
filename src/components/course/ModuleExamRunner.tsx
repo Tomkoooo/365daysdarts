@@ -6,11 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Loader2, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
-import { startModuleExam } from "@/actions/exam-actions" // We need to check if we exported this
-import {  submitFinalExam } from "@/actions/exam-actions" // We might need a separate submit for module? Reusing submitFinalExam logic might work if we tweak it or create submitModuleExam
-
-// We need a submitModuleExam action. Let's assume we'll create it next.
-import { submitModuleExam } from "@/actions/exam-actions" 
+import { startModuleExam, submitModuleExam } from "@/actions/exam-actions"
 
 interface ModuleExamRunnerProps {
     moduleId: string;

@@ -11,6 +11,7 @@ const ExamResultSchema = new Schema({
     selectedOptions: [{ type: Number }], // Array of selected indices
     isCorrect: { type: Boolean },
   }],
+  questionIds: [{ type: Schema.Types.ObjectId, ref: 'Question' }],
   type: {
     type: String,
     enum: ['practice', 'final', 'module'],

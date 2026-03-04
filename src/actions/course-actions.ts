@@ -363,20 +363,24 @@ export async function enrollInCourse(courseId: string) {
 
     if (!user.progress) user.progress = new Map();
 
-    // Only initialize if not already enrolled
+    // Initialize if not already enrolled, otherwise refresh activity timestamp.
     if (!user.progress || !user.progress.has(courseId.toString())) {
         if (!user.progress) user.progress = new Map();
-        
+
         user.progress.set(courseId.toString(), {
             completedModules: [],
             completedPages: [],
             lastViewedPage: null,
             lastViewedAt: new Date()
         });
-        
-        user.markModified('progress');
-        await user.save();
+    } else {
+        const existing = user.progress.get(courseId.toString()) || {};
+        existing.lastViewedAt = new Date();
+        user.progress.set(courseId.toString(), existing);
     }
+
+    user.markModified('progress');
+    await user.save();
 
     return { success: true };
 }
@@ -405,10 +409,26 @@ export async function getStudentProgress(courseId: string) {
 }
 
 export async function updateStudentProgress(courseId: string, pageId: string) {
+    await connectDB();
+
     const session = await getAuthSession();
     const userId = session?.user?.id;
     
     if (!userId) return { success: false };
+
+    // Data integrity: ensure page belongs to the provided course.
+    const page = await Page.findById(pageId).select("_id chapterId");
+    if (!page?.chapterId) {
+        return { success: false, error: "Invalid page" };
+    }
+    const chapter = await Chapter.findById(page.chapterId).select("_id moduleId");
+    if (!chapter?.moduleId) {
+        return { success: false, error: "Invalid chapter" };
+    }
+    const moduleDoc = await Module.findById(chapter.moduleId).select("_id courseId");
+    if (!moduleDoc?.courseId || moduleDoc.courseId.toString() !== courseId.toString()) {
+        return { success: false, error: "Page does not belong to this course" };
+    }
 
     const user = await User.findById(userId);
     if (!user) return { success: false };

@@ -4,7 +4,6 @@ import connectDB from "@/lib/db";
 import Question from "@/models/Question";
 import Module from "@/models/Module"; // Added
 import Course from "@/models/Course"; // Added
-import { authOptions } from "@/lib/auth";
 import { getAuthSession } from "@/lib/session";
 import mongoose from "mongoose"; // Added
 
@@ -77,8 +76,9 @@ export async function startModuleExam(moduleId: string) {
         moduleId: moduleId,
         type: "module",
         score: 0,
-        totalQuestions: settings.questionCount,
+        totalQuestions: questions.length,
         answers: [],
+        questionIds: questions.map((q: any) => q._id),
         startedAt: new Date()
     });
 
@@ -154,6 +154,28 @@ export async function startFinalExam(courseId: string) {
     type: "final",
     completedAt: null
   });
+
+  // Deterministic resume: if active exam already has a fixed question set, reuse it.
+  if (activeExam?.questionIds?.length) {
+      const idOrder = activeExam.questionIds.map((id: any) => id.toString());
+      const storedQuestions = await Question.find({ _id: { $in: idOrder } }).lean();
+      const byId = new Map(storedQuestions.map((q: any) => [q._id.toString(), q]));
+      const orderedQuestions = idOrder.map((id: string) => byId.get(id)).filter(Boolean);
+
+      const formattedQuestions = orderedQuestions.map((q: any) => ({
+          id: q._id.toString(),
+          text: q.text,
+          options: q.options,
+      }));
+
+      return {
+          examId: activeExam._id.toString(),
+          questions: formattedQuestions,
+          startTime: activeExam.startedAt,
+          resume: true,
+          timeLimit: settings.timeLimit || 60
+      };
+  }
 
   // 3. Question Generation Logic
   const modules = course.modules || [];
@@ -248,6 +270,10 @@ export async function startFinalExam(courseId: string) {
   }));
 
   if (activeExam) {
+       activeExam.questionIds = finalQuestions.map((q: any) => q._id);
+       activeExam.totalQuestions = finalQuestions.length;
+       await activeExam.save();
+
        return { 
            examId: activeExam._id.toString(), 
            questions: formattedQuestions, 
@@ -265,6 +291,7 @@ export async function startFinalExam(courseId: string) {
     score: 0,
     totalQuestions: finalQuestions.length,
     answers: [],
+    questionIds: finalQuestions.map((q: any) => q._id),
     startedAt: new Date()
   });
 
@@ -286,13 +313,15 @@ export async function submitModuleExam(examId: string, answers: Record<string, n
     const exam = await ExamResult.findById(examId);
     if (!exam) throw new Error("Exam not found");
     if (exam.completedAt) throw new Error("Exam already submitted");
+    if (exam.userId?.toString() !== session.user.id) throw new Error("Unauthorized");
 
     // Calculate Score
     let correctCount = 0;
     const answerDetails = [];
     
-    const questionIds = Object.keys(answers);
-    const questions = await Question.find({ _id: { $in: questionIds } });
+    const questionIds = (exam.questionIds || []).map((id: any) => id.toString());
+    const idsForLookup = questionIds.length > 0 ? questionIds : Object.keys(answers);
+    const questions = await Question.find({ _id: { $in: idsForLookup } });
 
     for (const q of questions) {
         const selectedIndices = answers[q._id.toString()] || [];
@@ -311,7 +340,7 @@ export async function submitModuleExam(examId: string, answers: Record<string, n
         });
     }
 
-    const score = Math.round((correctCount / (questions.length || 1)) * 100);
+    const score = Math.round((correctCount / (idsForLookup.length || 1)) * 100);
 
     // Get Module settings to check pass
     const module = await Module.findById(exam.moduleId);
@@ -322,7 +351,7 @@ export async function submitModuleExam(examId: string, answers: Record<string, n
     exam.score = score;
     exam.completedAt = new Date();
     exam.answers = answerDetails;
-    exam.totalQuestions = questions.length;
+    exam.totalQuestions = idsForLookup.length;
     await exam.save();
 
     // If passed, we could update User progress here to unlock next?
@@ -363,6 +392,7 @@ export async function submitFinalExam(examId: string, answers: Record<string, nu
     if (!exam) throw new Error("Exam not found");
 
     if (exam.completedAt) throw new Error("Exam already submitted");
+    if (exam.userId?.toString() !== session.user.id) throw new Error("Unauthorized");
 
     // Check Time Limit (1 Hour)
     const now = new Date();
@@ -377,11 +407,9 @@ export async function submitFinalExam(examId: string, answers: Record<string, nu
     let correctCount = 0;
     const answerDetails = [];
     
-    // We need to fetch the questions involved. 
-    // Since we didn't store Question IDs in ExamResult on creation (simplified),
-    // we rely on the answers keys which are question IDs.
-    const questionIds = Object.keys(answers);
-    const questions = await Question.find({ _id: { $in: questionIds } });
+    const questionIds = (exam.questionIds || []).map((id: any) => id.toString());
+    const idsForLookup = questionIds.length > 0 ? questionIds : Object.keys(answers);
+    const questions = await Question.find({ _id: { $in: idsForLookup } });
 
     for (const q of questions) {
         const selectedIndices = answers[q._id.toString()] || [];
@@ -403,16 +431,18 @@ export async function submitFinalExam(examId: string, answers: Record<string, nu
         });
     }
 
-    const score = Math.round((correctCount / (questions.length || 1)) * 100);
+    const score = Math.round((correctCount / (idsForLookup.length || 1)) * 100);
 
     // Update Exam Result
     exam.score = score;
     exam.completedAt = now;
     exam.answers = answerDetails;
-    exam.totalQuestions = questions.length;
+    exam.totalQuestions = idsForLookup.length;
     await exam.save();
 
-    const passed = score >= 75;
+    const course = await Course.findById(exam.courseId).select("finalExamSettings");
+    const passingScore = course?.finalExamSettings?.passingScore || 75;
+    const passed = score >= passingScore;
 
     // If final exam passed, mark course as completed in progress
     if (passed && session?.user?.id) {
@@ -428,10 +458,26 @@ export async function submitFinalExam(examId: string, answers: Record<string, nu
         }
     }
 
-    return { success: true, score, passed };
+    return { success: true, score, passed, passingScore };
 }
 
 // --- Lecturer Actions ---
+
+async function getScopedCourseIds(session: any): Promise<string[]> {
+    if (session?.user?.role === "admin") {
+        const courses = await Course.find({}).select("_id").lean();
+        return courses.map((c: any) => c._id.toString());
+    }
+
+    const courses = await Course.find({ authorId: session?.user?.id }).select("_id").lean();
+    return courses.map((c: any) => c._id.toString());
+}
+
+async function ensureLecturerCanAccessCourse(session: any, courseId: string) {
+    if (session?.user?.role === "admin") return true;
+    const course = await Course.findById(courseId).select("authorId").lean();
+    return !!course && course.authorId?.toString() === session?.user?.id;
+}
 
 export async function getLecturerExamResults() {
     const session = await getAuthSession();
@@ -440,9 +486,16 @@ export async function getLecturerExamResults() {
     }
 
     await connectDB();
-    
-    // Fetch all final exams, populated with user info
-    const results = await ExamResult.find({ type: 'final', completedAt: { $ne: null } })
+
+    const scopedCourseIds = await getScopedCourseIds(session);
+    if (scopedCourseIds.length === 0) return [];
+
+    // Fetch final exams only for lecturer-owned courses (admins: all)
+    const results = await ExamResult.find({
+        type: 'final',
+        completedAt: { $ne: null },
+        courseId: { $in: scopedCourseIds }
+    })
         .populate('userId', 'name email')
         .sort({ completedAt: -1 })
         .lean();
@@ -457,33 +510,104 @@ export async function getStudentStats() {
     }
 
     await connectDB();
-    
-    // Fetch all students
-    const students = await User.find({ role: 'student' }).select('name email progress').lean();
-    
-    // Fetch all exam results
-    const examResults = await ExamResult.find({ completedAt: { $ne: null } }).lean();
 
-    // Combine data
-    const stats = students.map((student: any) => {
-        const studentExams = examResults.filter((exam: any) => exam.userId.toString() === student._id.toString());
-        
-        const finalExams = studentExams.filter((e: any) => e.type === 'final');
-        const moduleExams = studentExams.filter((e: any) => e.type === 'module');
-        
-        // Calculate latest final exam result
-        const latestFinal = finalExams.sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0];
+    const scopedCourseIds = await getScopedCourseIds(session);
+    if (scopedCourseIds.length === 0) return [];
 
-        return {
-            id: student._id.toString(),
-            name: student.name,
-            email: student.email,
-            moduleExamsPassed: moduleExams.filter((e: any) => e.score >= 75).length, // Assuming 75 is pass for now, ideally check against module settings
-            finalExamScore: latestFinal ? latestFinal.score : null,
-            finalExamPassed: latestFinal ? latestFinal.score >= 75 : false, // Hardcoded for view, real logic in verify
-            finalExamAttempts: finalExams.length,
-            courseId: latestFinal ? latestFinal.courseId.toString() : null
-        };
+    const [students, courses, examResults] = await Promise.all([
+        User.find({ role: 'student' }).select('name email progress').lean(),
+        Course.find({ _id: { $in: scopedCourseIds } })
+            .select("title finalExamSettings modules")
+            .populate({
+                path: "modules",
+                select: "_id quizSettings chapters",
+                populate: {
+                    path: "chapters",
+                    select: "_id pages",
+                    populate: {
+                        path: "pages",
+                        select: "_id"
+                    }
+                }
+            })
+            .lean(),
+        ExamResult.find({
+            completedAt: { $ne: null },
+            courseId: { $in: scopedCourseIds }
+        }).lean()
+    ]);
+
+    const courseMap = new Map(courses.map((c: any) => [c._id.toString(), c]));
+    const stats: any[] = [];
+
+    for (const student of students as any[]) {
+        const progressObj = student.progress || {};
+        const progressCourseIds = Object.keys(progressObj).filter((id: string) => scopedCourseIds.includes(id));
+        const examCourseIds = Array.from(new Set(
+            examResults
+                .filter((exam: any) => exam.userId.toString() === student._id.toString() && exam.courseId)
+                .map((exam: any) => exam.courseId.toString())
+                .filter((id: string) => scopedCourseIds.includes(id))
+        ));
+        const studentCourseIds = Array.from(new Set([...progressCourseIds, ...examCourseIds]));
+
+        for (const courseId of studentCourseIds) {
+            const progress = progressObj[courseId] || {};
+            const course = courseMap.get(courseId);
+            if (!course) continue;
+
+            const studentCourseExams = examResults.filter((exam: any) =>
+                exam.userId.toString() === student._id.toString() &&
+                exam.courseId?.toString() === courseId
+            );
+            const finalExams = studentCourseExams
+                .filter((e: any) => e.type === 'final')
+                .sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+            const moduleExams = studentCourseExams.filter((e: any) => e.type === 'module');
+            const latestFinal = finalExams[0];
+
+            const completedModulesCount = (progress.completedModules || []).length;
+            const completedPagesCount = (progress.completedPages || []).length;
+            const totalModules = course.modules?.length || 0;
+            const totalPages = (course.modules || []).reduce((sum: number, m: any) => {
+                const pagesInModule = (m.chapters || []).reduce((chapterSum: number, c: any) => {
+                    return chapterSum + (c.pages?.length || 0);
+                }, 0);
+                return sum + pagesInModule;
+            }, 0);
+
+            const finalPassingScore = course.finalExamSettings?.passingScore || 75;
+
+            stats.push({
+                id: `${student._id.toString()}-${courseId}`,
+                studentId: student._id.toString(),
+                name: student.name,
+                email: student.email,
+                courseId,
+                courseTitle: course.title,
+                completedModulesCount,
+                totalModules,
+                completedPagesCount,
+                totalPages,
+                lastViewedAt: progress.lastViewedAt || null,
+                courseCompleted: !!progress.courseCompleted,
+                moduleExamsPassed: moduleExams.filter((e: any) => {
+                    const module = course.modules?.find((m: any) => m._id.toString() === e.moduleId?.toString());
+                    const passingScore = module?.quizSettings?.passingScore || 75;
+                    return e.score >= passingScore;
+                }).length,
+                finalExamScore: latestFinal ? latestFinal.score : null,
+                finalExamPassed: latestFinal ? latestFinal.score >= finalPassingScore : false,
+                finalExamAttempts: finalExams.length
+            });
+        }
+    }
+
+    stats.sort((a, b) => {
+        const aTime = a.lastViewedAt ? new Date(a.lastViewedAt).getTime() : 0;
+        const bTime = b.lastViewedAt ? new Date(b.lastViewedAt).getTime() : 0;
+        if (aTime !== bTime) return bTime - aTime;
+        return a.name.localeCompare(b.name);
     });
 
     return JSON.parse(JSON.stringify(stats));
@@ -496,6 +620,10 @@ export async function grantExtraRetry(studentId: string, courseId: string) {
     }
 
     await connectDB();
+    const canAccess = await ensureLecturerCanAccessCourse(session, courseId);
+    if (!canAccess) {
+        throw new Error("Unauthorized");
+    }
 
     const user = await User.findById(studentId);
     if (!user) throw new Error("Student not found");
@@ -507,7 +635,82 @@ export async function grantExtraRetry(studentId: string, courseId: string) {
     courseProgress.extraRetries = (courseProgress.extraRetries || 0) + 1;
     
     user.progress.set(courseId.toString(), courseProgress);
+    user.markModified('progress');
     await user.save();
 
     return { success: true };
+}
+
+export async function getStudentExamDetails(studentId: string, courseId: string) {
+    const session = await getAuthSession();
+    if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+    const canAccess = await ensureLecturerCanAccessCourse(session, courseId);
+    if (!canAccess) {
+        throw new Error("Unauthorized");
+    }
+
+    const [student, course, attempts, user] = await Promise.all([
+        User.findById(studentId).select("name email progress").lean(),
+        Course.findById(courseId).select("title finalExamSettings").lean(),
+        ExamResult.find({
+            userId: studentId,
+            courseId,
+            completedAt: { $ne: null }
+        })
+            .sort({ completedAt: -1 })
+            .lean(),
+    ]);
+
+    if (!student || !course) throw new Error("Not found");
+
+    const questionIds = Array.from(new Set((attempts as any[]).flatMap((attempt: any) =>
+        (attempt.answers || [])
+            .map((ans: any) => ans.questionId?.toString())
+            .filter(Boolean)
+    )));
+    const questions = await Question.find({ _id: { $in: questionIds } }).select("text").lean();
+
+    const questionTextMap = new Map((questions as any[]).map((q: any) => [q._id.toString(), q.text]));
+    const progressObj = (user as any)?.progress || {};
+    const courseProgress = progressObj[courseId] || {};
+
+    const formattedAttempts = (attempts as any[]).map((attempt: any) => ({
+        id: attempt._id.toString(),
+        type: attempt.type,
+        score: attempt.score,
+        totalQuestions: attempt.totalQuestions,
+        completedAt: attempt.completedAt,
+        startedAt: attempt.startedAt,
+        moduleId: attempt.moduleId?.toString() || null,
+        answers: (attempt.answers || []).map((ans: any) => ({
+            questionId: ans.questionId?.toString() || null,
+            questionText: ans.questionId ? (questionTextMap.get(ans.questionId.toString()) || "Ismeretlen kérdés") : "Ismeretlen kérdés",
+            selectedOptions: ans.selectedOptions || [],
+            isCorrect: !!ans.isCorrect
+        }))
+    }));
+
+    return JSON.parse(JSON.stringify({
+        student: {
+            id: studentId,
+            name: (student as any).name,
+            email: (student as any).email
+        },
+        course: {
+            id: courseId,
+            title: (course as any).title,
+            passingScore: (course as any).finalExamSettings?.passingScore || 75
+        },
+        progress: {
+            completedPages: courseProgress.completedPages || [],
+            completedModules: courseProgress.completedModules || [],
+            lastViewedAt: courseProgress.lastViewedAt || null,
+            courseCompleted: !!courseProgress.courseCompleted
+        },
+        attempts: formattedAttempts
+    }));
 }
