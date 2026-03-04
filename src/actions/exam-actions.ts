@@ -653,7 +653,7 @@ export async function getStudentExamDetails(studentId: string, courseId: string)
         throw new Error("Unauthorized");
     }
 
-    const [student, course, attempts, user] = await Promise.all([
+    const [student, course, attempts] = await Promise.all([
         User.findById(studentId).select("name email progress").lean(),
         Course.findById(courseId).select("title finalExamSettings").lean(),
         ExamResult.find({
@@ -675,7 +675,7 @@ export async function getStudentExamDetails(studentId: string, courseId: string)
     const questions = await Question.find({ _id: { $in: questionIds } }).select("text").lean();
 
     const questionTextMap = new Map((questions as any[]).map((q: any) => [q._id.toString(), q.text]));
-    const progressObj = (user as any)?.progress || {};
+    const progressObj = (student as any)?.progress || {};
     const courseProgress = progressObj[courseId] || {};
 
     const formattedAttempts = (attempts as any[]).map((attempt: any) => ({

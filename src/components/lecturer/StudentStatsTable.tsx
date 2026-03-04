@@ -78,7 +78,7 @@ export function StudentStatsTable() {
         <div className="space-y-4">
             <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Tanulói Teljesítmény</h3>
-                <Button size="sm" variant="outline" onClick={loadStats}>
+                <Button size="sm" variant="outline" onClick={() => { void loadStats(); }}>
                     <RefreshCw className="h-4 w-4 mr-2" /> Frissítés
                 </Button>
             </div>
