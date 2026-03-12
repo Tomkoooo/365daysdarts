@@ -68,6 +68,7 @@ export default function CoursePlayerClient({
   // Find current data based on currentId
   // We can use the flatten list or finding it again. Flatten list has the extra metadata we need (Breadcrumbs)
   const currentPageData = allPages.find(p => p._id === currentId);
+  const isPdfPage = viewingMode === "page" && currentPageData?.type === "pdf";
   
   // Navigation Logic
   function handleSelect(id: string) {
@@ -230,7 +231,7 @@ export default function CoursePlayerClient({
 
           {/* 2. Content Area - Fixed Height, No Scroll */}
           <div className="flex-1 flex flex-col p-4 md:p-8 bg-muted/10 overflow-hidden min-h-0">
-             <div className="max-w-5xl mx-auto w-full h-full flex flex-col">
+             <div className={`${isPdfPage ? "max-w-none" : "max-w-5xl"} mx-auto w-full h-full flex flex-col min-h-0`}>
                  
                 {loading ? (
                     <div className="space-y-6">
@@ -252,8 +253,8 @@ export default function CoursePlayerClient({
                         )}
                         
                         {currentPageData.type === 'pdf' && (
-                            <div className="w-full h-full flex items-center justify-center">
-                                <div className="w-full border rounded-lg overflow-hidden shadow-sm bg-background">
+                            <div className="w-full h-full min-h-0 flex">
+                                <div className="w-full h-full min-h-0 border rounded-lg overflow-hidden shadow-sm bg-background">
                                      <PDFViewer 
                                        url={currentPageData.mediaUrl || "/dummy.pdf"} 
                                        pageIndex={currentPageData.pdfPageIndex} 

@@ -328,7 +328,7 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                                         <Label className="text-sm font-semibold">Előnézet:</Label>
                                         
                                         {/* Visual Preview */}
-                                        <div className="border rounded-lg overflow-hidden bg-background">
+                                        <div className={`border rounded-lg overflow-hidden bg-background ${pageType === 'pdf' ? 'h-[60vh] min-h-[400px] max-h-[70vh]' : ''}`}>
                                             {pageType === 'video' && (
                                                 <video src={mediaUrl} controls className="w-full max-h-96 rounded" />
                                             )}
@@ -336,7 +336,7 @@ export function PageEditor({ page, onClose, onSave }: PageEditorProps) {
                                                 <img src={mediaUrl} alt="Előnézet" className="w-full max-h-96 object-contain rounded" />
                                             )}
                                             {pageType === 'pdf' && (
-                                                <div className="min-h-[400px]">
+                                                <div className="w-full h-full min-h-0">
                                                     <PDFViewer url={mediaUrl} pageIndex={1} />
                                                 </div>
                                             )}
