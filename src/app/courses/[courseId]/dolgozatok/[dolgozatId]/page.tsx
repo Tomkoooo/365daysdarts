@@ -9,10 +9,10 @@ import {
   submitDolgozat,
 } from "@/actions/dolgozat-actions";
 import {
-  SubmissionPhotoUploader,
-  type LocalPhoto,
-} from "@/components/dolgozat/SubmissionPhotoUploader";
-import { SubmissionGallery } from "@/components/dolgozat/SubmissionGallery";
+  SubmissionFileUploader,
+  type LocalFile,
+} from "@/components/dolgozat/SubmissionFileUploader";
+import { SubmissionFilesGallery } from "@/components/dolgozat/SubmissionFilesGallery";
 import { SubmissionStatusBadge } from "@/components/dolgozat/SubmissionStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,7 @@ export default function StudentDolgozatPage() {
   const courseId = params.courseId as string;
   const dolgozatId = params.dolgozatId as string;
   const [data, setData] = useState<any>(null);
-  const [photos, setPhotos] = useState<LocalPhoto[]>([]);
+  const [photos, setPhotos] = useState<LocalFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -180,11 +180,11 @@ export default function StudentDolgozatPage() {
       {showUploader ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Képek feltöltése</CardTitle>
+            <CardTitle className="text-base">Fájlok feltöltése</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <SubmissionPhotoUploader
-              photos={photos}
+            <SubmissionFileUploader
+              files={photos}
               onChange={setPhotos}
               disabled={saving || submitting}
             />
@@ -209,8 +209,8 @@ export default function StudentDolgozatPage() {
         </Card>
       ) : (
         <div>
-          <h2 className="font-semibold mb-3">Beadott képek</h2>
-          <SubmissionGallery photos={photos} />
+          <h2 className="font-semibold mb-3">Beadott fájlok</h2>
+          <SubmissionFilesGallery files={photos} />
         </div>
       )}
 
@@ -219,7 +219,7 @@ export default function StudentDolgozatPage() {
           <DialogHeader>
             <DialogTitle>Beadás megerősítése</DialogTitle>
             <DialogDescription>
-              Biztosan beadod a dolgozatot? {photos.length} kép kerül beküldésre.
+              Biztosan beadod a dolgozatot? {photos.length} fájl kerül beküldésre.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col sm:flex-row gap-2">

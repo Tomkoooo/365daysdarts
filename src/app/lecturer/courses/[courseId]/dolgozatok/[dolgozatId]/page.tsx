@@ -4,7 +4,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getDolgozatSubmissionsOverview, exportDolgozatGrades } from "@/actions/dolgozat-actions";
-import { SubmissionsTable } from "@/components/dolgozat/SubmissionsTable";
+import { SubmissionsTable, type SubmissionRow } from "@/components/dolgozat/SubmissionsTable";
+import { OnBehalfUploadDialog } from "@/components/dolgozat/OnBehalfUploadDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, FileSpreadsheet, Pencil, Loader2 } from "lucide-react";
@@ -17,6 +18,7 @@ export default function DolgozatSubmissionsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [onBehalfRow, setOnBehalfRow] = useState<SubmissionRow | null>(null);
 
   async function load() {
     try {
@@ -120,7 +122,26 @@ export default function DolgozatSubmissionsPage() {
         ))}
       </div>
 
-      <SubmissionsTable rows={data.rows} gradeBasePath={gradeBasePath} />
+      <SubmissionsTable
+        rows={data.rows}
+        gradeBasePath={gradeBasePath}
+        onUploadOnBehalf={(row) => setOnBehalfRow(row)}
+      />
+
+      {onBehalfRow && (
+        <OnBehalfUploadDialog
+          open={!!onBehalfRow}
+          onOpenChange={(open) => !open && setOnBehalfRow(null)}
+          dolgozatId={dolgozatId}
+          studentId={onBehalfRow.studentId}
+          studentName={onBehalfRow.name}
+          hasExistingSubmission={
+            !!onBehalfRow.submissionId &&
+            ["submitted", "submitted_late", "graded"].includes(onBehalfRow.status)
+          }
+          onSuccess={load}
+        />
+      )}
     </div>
   );
 }

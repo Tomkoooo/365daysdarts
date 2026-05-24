@@ -8,17 +8,21 @@ import Notification from "@/models/Notification";
 import User from "@/models/User";
 import { getAuthSession } from "@/lib/session";
 import {
-  MAX_SUBMISSION_PHOTOS,
-  ALLOWED_IMAGE_TYPES,
-  ALLOWED_QUESTION_FILE_TYPES,
+  MAX_SUBMISSION_FILES,
+  ALLOWED_SUBMISSION_DOCUMENT_TYPES,
+  isAllowedSubmissionMime,
+  getFileKindFromMime,
   computeIsLate,
   getSubmissionStatus,
   canEditSubmission,
+  isIncompleteStatus,
   STATUS_LABELS,
   type SubmissionStatus,
 } from "@/lib/dolgozat-utils";
 import mongoose from "mongoose";
 import * as XLSX from "xlsx";
+import { sendEmail } from "@/lib/email";
+import { buildPublishedEmail, buildGradedEmail } from "@/lib/dolgozat-email-templates";
 
 export type DolgozatInput = {
   title: string;
@@ -43,6 +47,7 @@ export type PhotoInput = {
   url: string;
   originalName?: string;
   contentType: string;
+  kind?: "image" | "document";
 };
 
 async function ensureLecturerCanAccessCourse(
@@ -84,7 +89,7 @@ async function getEnrolledStudentIds(courseId: string): Promise<string[]> {
 
 async function createNotification(data: {
   userId: string;
-  type: "dolgozat_submitted" | "dolgozat_graded";
+  type: "dolgozat_submitted" | "dolgozat_graded" | "dolgozat_on_behalf";
   dolgozatId: string;
   submissionId?: string;
   courseId: string;
@@ -102,6 +107,86 @@ async function createNotification(data: {
 
 function serialize<T>(doc: T): T {
   return JSON.parse(JSON.stringify(doc));
+}
+
+async function tagGridFsForSubmission(
+  mediaIds: mongoose.Types.ObjectId[],
+  submissionId: string,
+  ownerId: string
+) {
+  const db = mongoose.connection.db;
+  if (!db) return;
+  for (const mediaId of mediaIds) {
+    await db.collection("uploads.files").updateOne(
+      { _id: mediaId },
+      {
+        $set: {
+          "metadata.submissionId": submissionId,
+          "metadata.dolgozatProtected": true,
+          "metadata.ownerId": ownerId,
+        },
+      }
+    );
+  }
+}
+
+function buildOrderedFiles(photos: PhotoInput[]) {
+  return photos.map((p, index) => ({
+    order: index,
+    mediaId: new mongoose.Types.ObjectId(p.mediaId),
+    url: p.url,
+    originalName: p.originalName,
+    contentType: p.contentType,
+    kind: p.kind || getFileKindFromMime(p.contentType) || "image",
+    uploadedAt: new Date(),
+  }));
+}
+
+async function sendDolgozatEmailToUser(
+  userId: string,
+  template: "published" | "graded",
+  payload: Parameters<typeof buildPublishedEmail>[0] | Parameters<typeof buildGradedEmail>[0]
+) {
+  await connectDB();
+  const user = await User.findById(userId).select("name email dolgozatEmailNotifications").lean();
+  if (!user || !(user as any).dolgozatEmailNotifications || !(user as any).email) return;
+
+  const emailContent =
+    template === "published"
+      ? buildPublishedEmail(payload as Parameters<typeof buildPublishedEmail>[0])
+      : buildGradedEmail(payload as Parameters<typeof buildGradedEmail>[0]);
+
+  await sendEmail({
+    to: (user as any).email,
+    ...emailContent,
+  });
+}
+
+async function notifyPublishedDolgozat(dolgozat: {
+  _id: mongoose.Types.ObjectId;
+  courseId: mongoose.Types.ObjectId;
+  title: string;
+  description?: string;
+  deadlineAt?: Date;
+}) {
+  const course = await Course.findById(dolgozat.courseId).select("title").lean();
+  const studentIds = await getEnrolledStudentIds(dolgozat.courseId.toString());
+  const courseId = dolgozat.courseId.toString();
+  const dolgozatId = dolgozat._id.toString();
+
+  for (const studentId of studentIds) {
+    const user = await User.findById(studentId).select("name dolgozatEmailNotifications").lean();
+    if (!(user as any)?.dolgozatEmailNotifications) continue;
+    await sendDolgozatEmailToUser(studentId, "published", {
+      studentName: (user as any).name || "Tanuló",
+      courseTitle: (course as any)?.title || "Kurzus",
+      dolgozatTitle: dolgozat.title,
+      courseId,
+      dolgozatId,
+      deadlineAt: dolgozat.deadlineAt,
+      description: dolgozat.description,
+    });
+  }
 }
 
 // --- Lecturer: Dolgozat CRUD ---
@@ -169,7 +254,10 @@ export async function createDolgozat(courseId: string, input: DolgozatInput) {
   }
   if (!input.title?.trim()) return { success: false, error: "A cím kötelező" };
 
-  if (input.questionFile?.contentType && !ALLOWED_QUESTION_FILE_TYPES.includes(input.questionFile.contentType as any)) {
+  if (
+    input.questionFile?.contentType &&
+    !ALLOWED_SUBMISSION_DOCUMENT_TYPES.includes(input.questionFile.contentType as any)
+  ) {
     return { success: false, error: "Érvénytelen fájltípus" };
   }
 
@@ -189,6 +277,10 @@ export async function createDolgozat(courseId: string, input: DolgozatInput) {
     questionFile: input.questionFile || undefined,
   });
 
+  if (doc.isPublished) {
+    await notifyPublishedDolgozat(doc);
+  }
+
   return { success: true, id: doc._id.toString() };
 }
 
@@ -201,6 +293,8 @@ export async function updateDolgozat(dolgozatId: string, input: DolgozatInput) {
     return { success: false, error: "Nincs jogosultság" };
   }
   if (!input.title?.trim()) return { success: false, error: "A cím kötelező" };
+
+  const wasPublished = existing.isPublished;
 
   existing.title = input.title.trim();
   existing.description = input.description?.trim();
@@ -217,6 +311,11 @@ export async function updateDolgozat(dolgozatId: string, input: DolgozatInput) {
     existing.questionFile = input.questionFile as any;
   }
   await existing.save();
+
+  if (!wasPublished && existing.isPublished) {
+    await notifyPublishedDolgozat(existing);
+  }
+
   return { success: true };
 }
 
@@ -274,6 +373,7 @@ export async function getDolgozatSubmissionsOverview(dolgozatId: string) {
       points: sub?.points ?? null,
       feedback: sub?.feedback || null,
       photoCount: sub?.photos?.length || 0,
+      uploadedOnBehalf: !!sub?.uploadedOnBehalfBy,
     };
   });
 
@@ -372,6 +472,17 @@ export async function gradeSubmission(
     message: `Értékelve: „${dolgozat.title}” — ${points}/${dolgozat.maxPoints} pont`,
   });
 
+  const gradedStudent = await User.findById(submission.userId).select("name").lean();
+  await sendDolgozatEmailToUser(submission.userId.toString(), "graded", {
+    studentName: (gradedStudent as any)?.name || "Tanuló",
+    dolgozatTitle: dolgozat.title,
+    courseId: dolgozat.courseId.toString(),
+    dolgozatId: dolgozat._id.toString(),
+    points,
+    maxPoints: dolgozat.maxPoints,
+    feedback: feedback?.trim(),
+  });
+
   return { success: true };
 }
 
@@ -432,6 +543,7 @@ export async function listPublishedDolgozatokForStudent(courseId: string) {
       myStatusLabel: STATUS_LABELS[status],
       myPoints: sub?.points ?? null,
       submittedAt: sub?.submittedAt || null,
+      isIncomplete: isIncompleteStatus(status),
     };
   });
 }
@@ -487,13 +599,13 @@ export async function saveSubmissionPhotos(dolgozatId: string, photos: PhotoInpu
   const session = await getAuthSession();
   if (!session?.user?.id) return { success: false, error: "Bejelentkezés szükséges" };
 
-  if (photos.length > MAX_SUBMISSION_PHOTOS) {
-    return { success: false, error: `Maximum ${MAX_SUBMISSION_PHOTOS} kép engedélyezett` };
+  if (photos.length > MAX_SUBMISSION_FILES) {
+    return { success: false, error: `Maximum ${MAX_SUBMISSION_FILES} fájl engedélyezett` };
   }
 
   for (const p of photos) {
-    if (!ALLOWED_IMAGE_TYPES.includes(p.contentType as any)) {
-      return { success: false, error: "Érvénytelen képtípus" };
+    if (!isAllowedSubmissionMime(p.contentType)) {
+      return { success: false, error: "Érvénytelen fájltípus (kép, PDF vagy Word)" };
     }
   }
 
@@ -515,14 +627,7 @@ export async function saveSubmissionPhotos(dolgozatId: string, photos: PhotoInpu
     return { success: false, error: "A beadás már nem szerkeszthető" };
   }
 
-  const orderedPhotos = photos.map((p, index) => ({
-    order: index,
-    mediaId: new mongoose.Types.ObjectId(p.mediaId),
-    url: p.url,
-    originalName: p.originalName,
-    contentType: p.contentType,
-    uploadedAt: new Date(),
-  }));
+  const orderedPhotos = buildOrderedFiles(photos);
 
   if (!submission) {
     submission = await DolgozatSubmission.create({
@@ -536,21 +641,11 @@ export async function saveSubmissionPhotos(dolgozatId: string, photos: PhotoInpu
     await submission.save();
   }
 
-  const db = mongoose.connection.db;
-  if (db) {
-    for (const p of orderedPhotos) {
-      await db.collection("uploads.files").updateOne(
-        { _id: p.mediaId },
-        {
-          $set: {
-            "metadata.submissionId": submission._id.toString(),
-            "metadata.dolgozatProtected": true,
-            "metadata.ownerId": session.user.id,
-          },
-        }
-      );
-    }
-  }
+  await tagGridFsForSubmission(
+    orderedPhotos.map((p) => p.mediaId),
+    submission._id.toString(),
+    session.user.id
+  );
 
   return { success: true, submissionId: submission._id.toString() };
 }
@@ -572,12 +667,12 @@ export async function submitDolgozat(dolgozatId: string) {
     dolgozatId,
     userId: session.user.id,
   });
-  if (!submission) return { success: false, error: "Nincs feltöltött kép" };
+  if (!submission) return { success: false, error: "Nincs feltöltött fájl" };
   if (!canEditSubmission(submission, dolgozat)) {
     return { success: false, error: "A beadás már nem módosítható" };
   }
   if (!submission.photos?.length) {
-    return { success: false, error: "Legalább egy kép szükséges" };
+    return { success: false, error: "Legalább egy fájl szükséges" };
   }
 
   const now = new Date();
@@ -677,6 +772,7 @@ export async function exportDolgozatGrades(dolgozatId: string) {
     "Max pont": maxPoints,
     Százalék: r.points != null ? `${Math.round((r.points / maxPoints) * 100)}%` : "",
     Visszajelzés: r.feedback || "",
+    "Beadás forrása": r.uploadedOnBehalf ? "E-mail / oktató feltöltése" : "Rendszer",
   }));
 
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -687,6 +783,160 @@ export async function exportDolgozatGrades(dolgozatId: string) {
   const filename = `${(dolgozat as any).title.replace(/[^\w\s-]/g, "").slice(0, 40)}_beadások.xlsx`;
 
   return { success: true, base64, filename };
+}
+
+// --- Student: pending summary & email preference ---
+
+export async function getStudentDolgozatPendingSummary(courseId: string) {
+  const session = await getAuthSession();
+  if (!session?.user?.id) return { pendingCount: 0, pendingIds: [] as string[], hasUrgent: false };
+  if (!(await ensureStudentCourseAccess(session, courseId))) {
+    return { pendingCount: 0, pendingIds: [] as string[], hasUrgent: false };
+  }
+
+  await connectDB();
+  const dolgozatok = await Dolgozat.find({
+    courseId,
+    isPublished: true,
+    isArchived: false,
+  }).lean();
+
+  const submissions = await DolgozatSubmission.find({
+    dolgozatId: { $in: dolgozatok.map((d) => d._id) },
+    userId: session.user.id,
+  }).lean();
+
+  const subMap = new Map(submissions.map((s) => [s.dolgozatId.toString(), s]));
+  const now = Date.now();
+  const urgentWindow = 48 * 60 * 60 * 1000;
+
+  const pendingIds: string[] = [];
+  let hasUrgent = false;
+
+  for (const d of dolgozatok as any[]) {
+    const status = getSubmissionStatus(subMap.get(d._id.toString()) || null);
+    if (!isIncompleteStatus(status)) continue;
+    pendingIds.push(d._id.toString());
+    if (d.deadlineAt) {
+      const deadline = new Date(d.deadlineAt).getTime();
+      if (deadline > now && deadline - now <= urgentWindow) {
+        hasUrgent = true;
+      }
+    }
+  }
+
+  return { pendingCount: pendingIds.length, pendingIds, hasUrgent };
+}
+
+export async function getDolgozatEmailPreference() {
+  const session = await getAuthSession();
+  if (!session?.user?.id) return { enabled: false };
+  await connectDB();
+  const user = await User.findById(session.user.id).select("dolgozatEmailNotifications").lean();
+  return { enabled: !!(user as any)?.dolgozatEmailNotifications };
+}
+
+export async function updateDolgozatEmailPreference(enabled: boolean) {
+  const session = await getAuthSession();
+  if (!session?.user?.id) return { success: false, error: "Bejelentkezés szükséges" };
+  await connectDB();
+  await User.updateOne(
+    { _id: session.user.id },
+    { dolgozatEmailNotifications: enabled }
+  );
+  return { success: true };
+}
+
+// --- Lecturer/admin: on-behalf upload ---
+
+export async function uploadSubmissionOnBehalf(
+  dolgozatId: string,
+  studentId: string,
+  files: PhotoInput[],
+  options?: { markSubmitted?: boolean; force?: boolean }
+) {
+  const session = await getAuthSession();
+  if (!session?.user?.id) return { success: false, error: "Bejelentkezés szükséges" };
+
+  if (files.length > MAX_SUBMISSION_FILES) {
+    return { success: false, error: `Maximum ${MAX_SUBMISSION_FILES} fájl` };
+  }
+  for (const p of files) {
+    if (!isAllowedSubmissionMime(p.contentType)) {
+      return { success: false, error: "Érvénytelen fájltípus" };
+    }
+  }
+  if (!files.length) return { success: false, error: "Legalább egy fájl szükséges" };
+
+  await connectDB();
+  const dolgozat = await Dolgozat.findById(dolgozatId);
+  if (!dolgozat || dolgozat.isArchived) {
+    return { success: false, error: "Dolgozat nem található" };
+  }
+  const courseId = dolgozat.courseId.toString();
+  if (!(await ensureLecturerCanAccessCourse(session, courseId))) {
+    return { success: false, error: "Nincs jogosultság" };
+  }
+
+  const enrolled = await getEnrolledStudentIds(courseId);
+  if (!enrolled.includes(studentId)) {
+    return { success: false, error: "A tanuló nincs beiratkozva a kurzusra" };
+  }
+
+  let submission = await DolgozatSubmission.findOne({ dolgozatId, userId: studentId });
+  if (submission?.gradedAt && !options?.force) {
+    return { success: false, error: "Értékelt beadás nem írható felül. Előbb vonja vissza az értékelést." };
+  }
+  if (submission?.submittedAt && !options?.force) {
+    return { success: false, error: "Már van beadás. Használja a felülírás opciót." };
+  }
+
+  const orderedPhotos = buildOrderedFiles(files);
+  const markSubmitted = options?.markSubmitted !== false;
+  const now = new Date();
+
+  if (!submission) {
+    submission = await DolgozatSubmission.create({
+      dolgozatId,
+      courseId: dolgozat.courseId,
+      userId: studentId,
+      photos: orderedPhotos,
+      uploadedOnBehalfBy: new mongoose.Types.ObjectId(session.user.id),
+      uploadedOnBehalfAt: now,
+      ...(markSubmitted
+        ? {
+            submittedAt: now,
+            isLate: computeIsLate(now, dolgozat.deadlineAt),
+          }
+        : {}),
+    });
+  } else {
+    submission.photos = orderedPhotos as any;
+    submission.uploadedOnBehalfBy = new mongoose.Types.ObjectId(session.user.id);
+    submission.uploadedOnBehalfAt = now;
+    if (markSubmitted) {
+      submission.submittedAt = now;
+      submission.isLate = computeIsLate(now, dolgozat.deadlineAt);
+    }
+    await submission.save();
+  }
+
+  await tagGridFsForSubmission(
+    orderedPhotos.map((p) => p.mediaId),
+    submission._id.toString(),
+    studentId
+  );
+
+  await createNotification({
+    userId: studentId,
+    type: "dolgozat_on_behalf",
+    dolgozatId: dolgozat._id.toString(),
+    submissionId: submission._id.toString(),
+    courseId,
+    message: `Az oktató feltöltötte a beadásodat: „${dolgozat.title}”`,
+  });
+
+  return { success: true, submissionId: submission._id.toString() };
 }
 
 // Tag submission photos in GridFS metadata (called after upload from client)

@@ -1,12 +1,28 @@
-export const MAX_SUBMISSION_PHOTOS = 10;
+export const MAX_SUBMISSION_FILES = 10;
+/** @deprecated use MAX_SUBMISSION_FILES */
+export const MAX_SUBMISSION_PHOTOS = MAX_SUBMISSION_FILES;
 
-export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export const ALLOWED_SUBMISSION_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
 
-export const ALLOWED_QUESTION_FILE_TYPES = [
+/** @deprecated use ALLOWED_SUBMISSION_IMAGE_TYPES */
+export const ALLOWED_IMAGE_TYPES = ALLOWED_SUBMISSION_IMAGE_TYPES;
+
+export const ALLOWED_SUBMISSION_DOCUMENT_TYPES = [
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ] as const;
+
+/** @deprecated use ALLOWED_SUBMISSION_DOCUMENT_TYPES */
+export const ALLOWED_QUESTION_FILE_TYPES = ALLOWED_SUBMISSION_DOCUMENT_TYPES;
+
+export const MAX_DOCUMENT_SIZE_BYTES = 15 * 1024 * 1024;
+
+export type SubmissionFileKind = 'image' | 'document';
 
 export type SubmissionStatus =
   | 'not_submitted'
@@ -14,6 +30,24 @@ export type SubmissionStatus =
   | 'submitted_late'
   | 'graded'
   | 'draft';
+
+export function isImageMime(contentType: string): boolean {
+  return (ALLOWED_SUBMISSION_IMAGE_TYPES as readonly string[]).includes(contentType);
+}
+
+export function isDocumentMime(contentType: string): boolean {
+  return (ALLOWED_SUBMISSION_DOCUMENT_TYPES as readonly string[]).includes(contentType);
+}
+
+export function getFileKindFromMime(contentType: string): SubmissionFileKind | null {
+  if (isImageMime(contentType)) return 'image';
+  if (isDocumentMime(contentType)) return 'document';
+  return null;
+}
+
+export function isAllowedSubmissionMime(contentType: string): boolean {
+  return getFileKindFromMime(contentType) !== null;
+}
 
 export function computeIsLate(submittedAt: Date, deadlineAt?: Date | null): boolean {
   if (!deadlineAt) return false;
@@ -44,6 +78,10 @@ export const STATUS_LABELS: Record<SubmissionStatus, string> = {
   graded: 'Értékelve',
   draft: 'Piszkozat',
 };
+
+export function isIncompleteStatus(status: SubmissionStatus): boolean {
+  return status === 'not_submitted' || status === 'draft';
+}
 
 export function canEditSubmission(
   submission: { submittedAt?: Date | null; gradedAt?: Date | null },

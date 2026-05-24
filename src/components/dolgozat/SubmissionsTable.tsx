@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { SubmissionStatusBadge } from "./SubmissionStatusBadge";
 import type { SubmissionStatus } from "@/lib/dolgozat-utils";
 import Link from "next/link";
@@ -26,14 +27,17 @@ export type SubmissionRow = {
   isLate: boolean;
   points: number | null;
   photoCount: number;
+  uploadedOnBehalf?: boolean;
 };
 
 export function SubmissionsTable({
   rows,
   gradeBasePath,
+  onUploadOnBehalf,
 }: {
   rows: SubmissionRow[];
   gradeBasePath: string;
+  onUploadOnBehalf: (row: SubmissionRow) => void;
 }) {
   const [search, setSearch] = useState("");
 
@@ -64,6 +68,7 @@ export function SubmissionsTable({
               <TableHead>Státusz</TableHead>
               <TableHead>Beadva</TableHead>
               <TableHead>Pont</TableHead>
+              <TableHead>Forrás</TableHead>
               <TableHead className="text-right">Művelet</TableHead>
             </TableRow>
           </TableHeader>
@@ -84,15 +89,31 @@ export function SubmissionsTable({
                   )}
                 </TableCell>
                 <TableCell>{row.points != null ? row.points : "—"}</TableCell>
-                <TableCell className="text-right">
-                  {row.submissionId && row.photoCount > 0 ? (
+                <TableCell>
+                  {row.uploadedOnBehalf ? (
+                    <Badge variant="outline" className="text-xs">
+                      E-mail / feltöltve
+                    </Badge>
+                  ) : row.submittedAt ? (
+                    <span className="text-xs text-muted-foreground">Rendszer</span>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+                <TableCell className="text-right space-x-1">
+                  <Button
+                    size="sm"
+                    variant={row.status === "not_submitted" ? "default" : "outline"}
+                    onClick={() => onUploadOnBehalf(row)}
+                  >
+                    Beadás feltöltése
+                  </Button>
+                  {row.submissionId && row.photoCount > 0 && (
                     <Button asChild size="sm" variant="outline">
                       <Link href={`${gradeBasePath}/${row.submissionId}`}>
                         {row.status === "graded" ? "Megtekintés" : "Értékelés"}
                       </Link>
                     </Button>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">—</span>
                   )}
                 </TableCell>
               </TableRow>

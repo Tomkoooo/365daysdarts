@@ -1,8 +1,10 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, FileQuestion, GraduationCap, ClipboardList } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, FileQuestion, GraduationCap, ClipboardList, AlertTriangle } from "lucide-react"
+import { getStudentDolgozatPendingSummary } from "@/actions/dolgozat-actions"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -50,6 +52,15 @@ export function CourseSidebar({
     const completedModules = progress.completedModules || [];
     const completedPages = progress.completedPages || [];
     const allModulesCompleted = modules.every((m: any) => completedModules.includes(m._id.toString()));
+  const [pendingDolgozat, setPendingDolgozat] = useState({ pendingCount: 0, hasUrgent: false });
+
+  useEffect(() => {
+    if (!courseId) return;
+    getStudentDolgozatPendingSummary(courseId)
+      .then(setPendingDolgozat)
+      .catch(() => setPendingDolgozat({ pendingCount: 0, hasUrgent: false }));
+  }, [courseId]);
+
   return (
     <div className="w-full h-full flex flex-col bg-background min-h-0">
        <div className="p-4 border-b font-semibold truncate" title={courseTitle}>{courseTitle}</div>
@@ -123,10 +134,25 @@ export function CourseSidebar({
          <div className="border-t p-3">
            <Link
              href={`/courses/${courseId}/dolgozatok`}
-             className="w-full flex items-center gap-3 px-3 py-3 rounded-md text-sm font-medium hover:bg-muted/80 transition-colors"
+             className={cn(
+               "w-full flex items-center gap-3 px-3 py-3 rounded-md text-sm font-medium hover:bg-muted/80 transition-colors relative",
+               pendingDolgozat.pendingCount > 0 && "border border-amber-500/40 bg-amber-500/5"
+             )}
            >
              <ClipboardList className="w-4 h-4 shrink-0 text-cta" />
-             Dolgozatok
+             <span className="flex-1">Dolgozatok</span>
+             {pendingDolgozat.pendingCount > 0 && (
+               <span
+                 className={cn(
+                   "flex items-center gap-0.5 text-amber-500",
+                   pendingDolgozat.hasUrgent && "text-amber-400"
+                 )}
+                 title={`${pendingDolgozat.pendingCount} be nem adott dolgozat`}
+               >
+                 <AlertTriangle className="h-4 w-4 shrink-0" />
+                 <span className="text-xs font-semibold">{pendingDolgozat.pendingCount}</span>
+               </span>
+             )}
            </Link>
          </div>
        )}

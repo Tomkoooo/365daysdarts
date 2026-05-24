@@ -19,6 +19,7 @@ const UserSchema = new Schema({
   subscriptionId: { type: String }, // Stripe subscription ID
   customerId: { type: String }, // Stripe customer ID
   progress: { type: Map, of: Object }, // Store course progress (courseId -> data)
+  dolgozatEmailNotifications: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const User = models.User || model('User', UserSchema);

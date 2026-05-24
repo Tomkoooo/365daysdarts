@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SubmissionStatusBadge } from "@/components/dolgozat/SubmissionStatusBadge";
-import { ArrowLeft } from "lucide-react";
+import { DolgozatEmailPreference } from "@/components/dolgozat/DolgozatEmailPreference";
+import { ArrowLeft, AlertTriangle } from "lucide-react";
 import type { SubmissionStatus } from "@/lib/dolgozat-utils";
 
 export default async function StudentDolgozatokListPage({
@@ -45,6 +46,8 @@ export default async function StudentDolgozatokListPage({
         </div>
       </div>
 
+      <DolgozatEmailPreference />
+
       {items.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -54,15 +57,33 @@ export default async function StudentDolgozatokListPage({
       ) : (
         <div className="grid gap-4">
           {items.map((d) => (
-            <Card key={d._id} className="hover:border-cta/50 transition-colors">
+            <Card
+              key={d._id}
+              className={`hover:border-cta/50 transition-colors ${
+                d.isIncomplete ? "border-amber-500/50" : ""
+              }`}
+            >
               <Link href={`/courses/${courseId}/dolgozatok/${d._id}`}>
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-lg">{d.title}</CardTitle>
+                    <div className="flex items-start gap-2 min-w-0">
+                      {d.isIncomplete && (
+                        <AlertTriangle
+                          className="h-5 w-5 shrink-0 text-amber-500 mt-0.5"
+                          aria-label="Még nincs beadva"
+                        />
+                      )}
+                      <CardTitle className="text-lg">{d.title}</CardTitle>
+                    </div>
                     <SubmissionStatusBadge status={d.myStatus as SubmissionStatus} />
                   </div>
                   {d.label && (
                     <span className="text-sm text-muted-foreground">{d.label}</span>
+                  )}
+                  {d.isIncomplete && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                      Még nincs beadva — kattints a feltöltéshez
+                    </p>
                   )}
                 </CardHeader>
                 <CardContent>

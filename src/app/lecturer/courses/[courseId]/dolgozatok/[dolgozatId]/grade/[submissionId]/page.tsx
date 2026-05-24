@@ -4,9 +4,10 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getSubmissionForGrading } from "@/actions/dolgozat-actions";
-import { SubmissionGallery } from "@/components/dolgozat/SubmissionGallery";
+import { SubmissionFilesGallery } from "@/components/dolgozat/SubmissionFilesGallery";
 import { GradePanel } from "@/components/dolgozat/GradePanel";
 import { SubmissionStatusBadge } from "@/components/dolgozat/SubmissionStatusBadge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -60,13 +61,18 @@ export default function GradeSubmissionPage() {
           <h1 className="text-xl font-bold">{submission.user.name}</h1>
           <p className="text-sm text-muted-foreground">{submission.user.email}</p>
         </div>
-        <SubmissionStatusBadge status={status} className="ml-auto" />
+        <div className="ml-auto flex items-center gap-2">
+          {submission.uploadedOnBehalfBy && (
+            <Badge variant="outline">E-mailben beadva / feltöltve</Badge>
+          )}
+          <SubmissionStatusBadge status={status} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <h2 className="font-semibold mb-3">Beadott képek</h2>
-          <SubmissionGallery photos={submission.photos} />
+          <SubmissionFilesGallery files={submission.photos} />
         </div>
         <div>
           <GradePanel
