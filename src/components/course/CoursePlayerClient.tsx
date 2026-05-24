@@ -147,6 +147,7 @@ export default function CoursePlayerClient({
 
   const SidebarContent = (
     <CourseSidebar 
+      courseId={previewMode ? undefined : course._id?.toString?.() || course._id}
       courseTitle={course.title} 
       modules={course.modules || []} 
       currentLectureId={currentId}

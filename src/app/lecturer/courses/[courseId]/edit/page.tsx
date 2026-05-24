@@ -12,7 +12,8 @@ import { QuestionManager } from "@/components/lecturer/QuestionManager"
 import { FinalExamSettings } from "@/components/lecturer/FinalExamSettings"
 import { ExcelUploadModal } from "@/components/lecturer/ExcelUploadModal"
 import { CourseQuestionManager } from "@/components/lecturer/CourseQuestionManager"
-import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upload, Loader2, Database, Video, BookOpen, Eye, FileQuestion, GraduationCap, Pencil, ChevronUp, ChevronDown } from "lucide-react"
+import { exportQuestionsToExcel } from "@/actions/bulk-upload-actions"
+import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upload, Download, Loader2, Database, Video, BookOpen, Eye, FileQuestion, GraduationCap, Pencil, ChevronUp, ChevronDown, ClipboardList } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import CoursePlayerClient from "@/components/course/CoursePlayerClient"
@@ -36,6 +37,7 @@ export default function CourseEditorPage() {
   const [editingFinalExam, setEditingFinalExam] = useState(false)
 
   const [isUploading, setIsUploading] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [managingQuestions, setManagingQuestions] = useState(false)
 
@@ -66,6 +68,42 @@ export default function CourseEditorPage() {
       await createModule(courseId, newModuleTitle)
       setNewModuleTitle("")
       loadCourse()
+  }
+
+  async function handleExportQuestions() {
+      setIsExporting(true)
+      try {
+          const result = await exportQuestionsToExcel(courseId)
+
+          if (!result.success) {
+              toast.error(result.error || "Exportálási hiba")
+              return
+          }
+
+          const byteCharacters = atob(result.data)
+          const byteNumbers = new Uint8Array(byteCharacters.length)
+          for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i)
+          }
+
+          const blob = new Blob(
+              [byteNumbers],
+              { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+          )
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = result.filename
+          link.click()
+          URL.revokeObjectURL(url)
+
+          toast.success(`Sikeres exportálás! ${result.count} kérdés letöltve.`)
+      } catch (e) {
+          console.error(e)
+          toast.error("Hiba történt az exportálás során.")
+      } finally {
+          setIsExporting(false)
+      }
   }
 
   async function handleAddChapter(moduleId: string) {
@@ -176,7 +214,12 @@ export default function CourseEditorPage() {
                    </div>
                    <p className="text-muted-foreground">Tanterv Kezelése</p>
                 </div>
-                <div className="flex gap-2 w-full md:w-auto">
+                <div className="flex gap-2 w-full md:w-auto flex-wrap">
+                     <Button variant="outline" asChild>
+                         <Link href={`/lecturer/courses/${courseId}/dolgozatok`}>
+                             <ClipboardList className="mr-2 h-4 w-4" /> Dolgozatok
+                         </Link>
+                     </Button>
                      <Button variant="outline" asChild>
                          <Link href="/dashboard">Irányítópult</Link>
                      </Button>
@@ -359,6 +402,19 @@ export default function CourseEditorPage() {
                             </Button>
                             <Button variant="outline" className="w-full justify-start mt-2" onClick={() => setIsUploading(true)}>
                                 <Upload className="mr-2 h-4 w-4" /> Kérdések Importálása
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="w-full justify-start mt-2"
+                                onClick={handleExportQuestions}
+                                disabled={isExporting}
+                            >
+                                {isExporting ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Download className="mr-2 h-4 w-4" />
+                                )}
+                                Kérdések Exportálása
                             </Button>
                             <Button variant="outline" className="w-full justify-start mt-2" onClick={() => setManagingQuestions(true)}>
                                 <Database className="mr-2 h-4 w-4" /> Kérdésbank Kezelése

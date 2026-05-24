@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import mongoose from "mongoose";
+import { getAuthSession } from "@/lib/session";
+import { canAccessProtectedMedia } from "@/lib/media-access";
 
 export async function GET(
   request: NextRequest,
@@ -33,6 +35,21 @@ export async function GET(
       
       const file = files[0] as any;
       const contentType = file.metadata?.contentType || file.contentType || 'application/octet-stream';
+
+      if (file.metadata?.dolgozatProtected) {
+          const session = await getAuthSession();
+          if (!session?.user?.id) {
+              return new NextResponse("Unauthorized", { status: 401 });
+          }
+          const allowed = await canAccessProtectedMedia(
+              id,
+              session.user.id,
+              session.user.role
+          );
+          if (!allowed) {
+              return new NextResponse("Forbidden", { status: 403 });
+          }
+      }
 
       // Create a ReadableStream from the GridFS download stream
       // We need to convert Node stream to Web Stream for NextResponse

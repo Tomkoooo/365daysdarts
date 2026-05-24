@@ -2,8 +2,9 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { CheckCircle, PlayCircle, FileText, FileQuestion, GraduationCap } from "lucide-react"
+import { CheckCircle, PlayCircle, FileText, FileQuestion, GraduationCap, ClipboardList } from "lucide-react"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
 interface Page {
   _id: string;
@@ -25,6 +26,7 @@ interface Module {
 }
 
 interface CourseSidebarProps {
+  courseId?: string;
   courseTitle: string;
   modules: any[];
   currentLectureId?: string;
@@ -37,6 +39,7 @@ interface CourseSidebarProps {
 }
 
 export function CourseSidebar({ 
+    courseId,
     courseTitle, 
     modules, 
     currentLectureId, 
@@ -115,6 +118,18 @@ export function CourseSidebar({
            ))}
          </Accordion>
        </ScrollArea>
+
+       {courseId && (
+         <div className="border-t p-3">
+           <Link
+             href={`/courses/${courseId}/dolgozatok`}
+             className="w-full flex items-center gap-3 px-3 py-3 rounded-md text-sm font-medium hover:bg-muted/80 transition-colors"
+           >
+             <ClipboardList className="w-4 h-4 shrink-0 text-cta" />
+             Dolgozatok
+           </Link>
+         </div>
+       )}
        
        {/* Final Exam Section */}
        {onModuleExamSelect && (

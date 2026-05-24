@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu, ChevronDown, User, LogOut, LayoutDashboard } from "lucide-react"
+import { NotificationBell } from "@/components/layout/NotificationBell"
 import { useState } from "react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -93,6 +94,8 @@ export function Navbar() {
 
         <div className="flex items-center gap-4">
           {session?.user ? (
+            <>
+            <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full border border-navy-lighter">
@@ -115,6 +118,7 @@ export function Navbar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            </>
           ) : (
             <div className="hidden md:flex gap-2">
                 <Button variant="ghost" className="text-white hover:text-cta hover:bg-navy-lighter" onClick={() => signIn("google", { callbackUrl: "/dashboard" })}>
