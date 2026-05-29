@@ -1,44 +1,84 @@
-import { withAuth } from "next-auth/middleware"
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
+import { requestHasSessionCookie } from "@/lib/next-auth-cookies";
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token
-    const path = req.nextUrl.pathname
+const PROTECTED_PREFIXES = ["/dashboard", "/admin", "/business", "/lecturer"];
 
-    if (process.env.DEV_MODE === "true") {
-      console.log("Dev mode enabled")
-      return NextResponse.next()
-    }
-    
-    // Protect Admin routes
-    if (path.startsWith("/admin") && token?.role !== "admin") {
-      return NextResponse.redirect(new URL("/dashboard", req.url))
-    }
+function isProtectedPath(path: string) {
+  return PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
 
-    // Protect Business routes
-    if (path.startsWith("/business") && token?.role !== "business" && token?.role !== "admin") {
-      return NextResponse.redirect(new URL("/dashboard", req.url))
-    }
+function isAuthApiPath(path: string) {
+  return path.startsWith("/api/auth/");
+}
 
-    // Protect Lecturer routes
-    if (path.startsWith("/lecturer") && token?.role !== "lecturer" && token?.role !== "admin") {
-      return NextResponse.redirect(new URL("/dashboard", req.url))
-    }
-    
-    // Default dashboard redirection based on role if needed (optional logic)
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => {
-        // Bypass auth in dev mode
-        if (process.env.DEV_MODE === "true") return true;
-        return !!token;
-      },
-    },
+async function getValidToken(req: NextRequest) {
+  return getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+}
+
+function redirectToSignOut(req: NextRequest) {
+  const signOut = new URL("/api/auth/signout", req.url);
+  signOut.searchParams.set("callbackUrl", "/login?session=expired");
+  return NextResponse.redirect(signOut);
+}
+
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+
+  if (process.env.DEV_MODE === "true") {
+    return NextResponse.next();
   }
-)
+
+  const hasSessionCookie = requestHasSessionCookie(req.cookies);
+
+  // Stale/invalid JWT (e.g. after NEXTAUTH_SECRET rotation) — clear via sign-out
+  if (hasSessionCookie && !isAuthApiPath(path)) {
+    const token = await getValidToken(req);
+    if (!token) {
+      return redirectToSignOut(req);
+    }
+  }
+
+  if (!isProtectedPath(path)) {
+    return NextResponse.next();
+  }
+
+  const token = await getValidToken(req);
+  if (!token) {
+    const login = new URL("/login", req.url);
+    login.searchParams.set("callbackUrl", path);
+    return NextResponse.redirect(login);
+  }
+
+  if (path.startsWith("/admin") && token.role !== "admin") {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  if (
+    path.startsWith("/business") &&
+    token.role !== "business" &&
+    token.role !== "admin"
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  if (
+    path.startsWith("/lecturer") &&
+    token.role !== "lecturer" &&
+    token.role !== "admin"
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/business/:path*", "/lecturer/:path*"],
-}
+  matcher: [
+    /*
+     * Run on all routes except static assets so stale session cookies
+     * are cleared site-wide after NEXTAUTH_SECRET changes.
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};
