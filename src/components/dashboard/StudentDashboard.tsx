@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { getStudentCourses } from "@/actions/course-actions"
-import { Loader2, BookOpen, Trophy, Clock } from "lucide-react"
+import { Loader2, BookOpen, Trophy, Clock, AlertTriangle } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 export default function StudentDashboard() {
   const [courses, setCourses] = useState<any[]>([])
@@ -84,9 +85,17 @@ export default function StudentDashboard() {
             const lastViewed = course.progress?.lastViewedAt 
               ? new Date(course.progress.lastViewedAt).toLocaleDateString('hu-HU')
               : 'Még nem kezdted el'
+            const dolgozatWarnings = course.dolgozatWarningCount ?? 0
+            const optionWarnings = course.optionWarningCount ?? 0
+            const totalWarnings = dolgozatWarnings + optionWarnings
 
             return (
-              <Card key={course._id} className="hover:shadow-lg transition-shadow">
+              <Card
+                key={course._id}
+                className={`hover:shadow-lg transition-shadow ${
+                  totalWarnings > 0 ? "border-amber-500/40" : ""
+                }`}
+              >
                 <CardHeader>
                   {course.thumbnail && (
                     <img 
@@ -99,6 +108,28 @@ export default function StudentDashboard() {
                   <CardDescription className="line-clamp-2">
                     {course.description}
                   </CardDescription>
+                  {totalWarnings > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {dolgozatWarnings > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-500/50 text-amber-600 dark:text-amber-400"
+                        >
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {dolgozatWarnings} dolgozat
+                        </Badge>
+                      )}
+                      {optionWarnings > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-500/50 text-amber-600 dark:text-amber-400"
+                        >
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {optionWarnings} jelentkezés
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -115,19 +146,29 @@ export default function StudentDashboard() {
                   </div>
 
                   {!course.progress?.courseCompleted && (
-                    <div className="flex gap-2">
-                      {course.progress?.lastViewedPage ? (
-                        <Button asChild className="flex-1">
-                          <Link href={`/courses/${course._id}/learn`}>
-                            <BookOpen className="mr-2 h-4 w-4" />
-                            Folytatás
-                          </Link>
-                        </Button>
-                      ) : (
-                        <Button asChild className="flex-1">
-                          <Link href={`/courses/${course._id}/learn`}>
-                            <BookOpen className="mr-2 h-4 w-4" />
-                            Kezdés
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        {course.progress?.lastViewedPage ? (
+                          <Button asChild className="flex-1">
+                            <Link href={`/courses/${course._id}/learn`}>
+                              <BookOpen className="mr-2 h-4 w-4" />
+                              Folytatás
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button asChild className="flex-1">
+                            <Link href={`/courses/${course._id}/learn`}>
+                              <BookOpen className="mr-2 h-4 w-4" />
+                              Kezdés
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
+                      {totalWarnings > 0 && (
+                        <Button variant="outline" size="sm" asChild className="w-full">
+                          <Link href={`/courses/${course._id}/dolgozatok`}>
+                            <AlertTriangle className="mr-2 h-4 w-4 text-amber-500" />
+                            Dolgozatok / jelentkezések ({totalWarnings})
                           </Link>
                         </Button>
                       )}

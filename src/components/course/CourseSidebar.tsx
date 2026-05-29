@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { CheckCircle, PlayCircle, FileText, FileQuestion, GraduationCap, ClipboardList, AlertTriangle } from "lucide-react"
 import { getStudentDolgozatPendingSummary } from "@/actions/dolgozat-actions"
+import { getStudentOptionSelectorPendingSummary } from "@/actions/option-selector-actions"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -53,13 +54,25 @@ export function CourseSidebar({
     const completedPages = progress.completedPages || [];
     const allModulesCompleted = modules.every((m: any) => completedModules.includes(m._id.toString()));
   const [pendingDolgozat, setPendingDolgozat] = useState({ pendingCount: 0, hasUrgent: false });
+  const [pendingOptions, setPendingOptions] = useState({ pendingCount: 0 });
 
   useEffect(() => {
     if (!courseId) return;
-    getStudentDolgozatPendingSummary(courseId)
-      .then(setPendingDolgozat)
-      .catch(() => setPendingDolgozat({ pendingCount: 0, hasUrgent: false }));
+    Promise.all([
+      getStudentDolgozatPendingSummary(courseId),
+      getStudentOptionSelectorPendingSummary(courseId),
+    ])
+      .then(([dolgozat, options]) => {
+        setPendingDolgozat(dolgozat);
+        setPendingOptions(options);
+      })
+      .catch(() => {
+        setPendingDolgozat({ pendingCount: 0, hasUrgent: false });
+        setPendingOptions({ pendingCount: 0 });
+      });
   }, [courseId]);
+
+  const totalPending = pendingDolgozat.pendingCount + pendingOptions.pendingCount;
 
   return (
     <div className="w-full h-full flex flex-col bg-background min-h-0">
@@ -136,21 +149,28 @@ export function CourseSidebar({
              href={`/courses/${courseId}/dolgozatok`}
              className={cn(
                "w-full flex items-center gap-3 px-3 py-3 rounded-md text-sm font-medium hover:bg-muted/80 transition-colors relative",
-               pendingDolgozat.pendingCount > 0 && "border border-amber-500/40 bg-amber-500/5"
+               totalPending > 0 && "border border-amber-500/40 bg-amber-500/5"
              )}
            >
              <ClipboardList className="w-4 h-4 shrink-0 text-cta" />
              <span className="flex-1">Dolgozatok</span>
-             {pendingDolgozat.pendingCount > 0 && (
+             {totalPending > 0 && (
                <span
                  className={cn(
                    "flex items-center gap-0.5 text-amber-500",
                    pendingDolgozat.hasUrgent && "text-amber-400"
                  )}
-                 title={`${pendingDolgozat.pendingCount} be nem adott dolgozat`}
+                 title={[
+                   pendingDolgozat.pendingCount > 0 &&
+                     `${pendingDolgozat.pendingCount} be nem adott dolgozat`,
+                   pendingOptions.pendingCount > 0 &&
+                     `${pendingOptions.pendingCount} új jelentkezés`,
+                 ]
+                   .filter(Boolean)
+                   .join(", ")}
                >
                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                 <span className="text-xs font-semibold">{pendingDolgozat.pendingCount}</span>
+                 <span className="text-xs font-semibold">{totalPending}</span>
                </span>
              )}
            </Link>

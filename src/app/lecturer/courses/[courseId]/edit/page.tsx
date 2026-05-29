@@ -221,6 +221,11 @@ export default function CourseEditorPage() {
                          </Link>
                      </Button>
                      <Button variant="outline" asChild>
+                         <Link href={`/lecturer/courses/${courseId}/opciovalasztok`}>
+                             <ClipboardList className="mr-2 h-4 w-4" /> Opcióválasztók
+                         </Link>
+                     </Button>
+                     <Button variant="outline" asChild>
                          <Link href="/dashboard">Irányítópult</Link>
                      </Button>
                      

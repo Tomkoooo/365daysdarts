@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SubmissionStatusBadge } from "@/components/dolgozat/SubmissionStatusBadge";
 import { DolgozatEmailPreference } from "@/components/dolgozat/DolgozatEmailPreference";
+import { StudentOptionSelectorList } from "@/components/option-selector/StudentOptionSelectorList";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
 import type { SubmissionStatus } from "@/lib/dolgozat-utils";
 
@@ -41,12 +42,16 @@ export default async function StudentDolgozatokListPage({
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Dolgozatok</h1>
-          <p className="text-muted-foreground text-sm">Beadandók és házi feladatok</p>
+          <h1 className="text-2xl font-bold">Dolgozatok és jelentkezések</h1>
+          <p className="text-muted-foreground text-sm">Beadandók, időpont-jelentkezés</p>
         </div>
       </div>
 
       <DolgozatEmailPreference />
+
+      <StudentOptionSelectorList courseId={courseId} />
+
+      <h2 className="text-lg font-semibold pt-2">Dolgozatok</h2>
 
       {items.length === 0 ? (
         <Card>

@@ -299,9 +299,18 @@ export async function getStudentCourses() {
         })
         .lean();
 
+    const courseIdStrings = courses.map((c: any) => c._id.toString());
+    const { getCourseActionWarningCounts } = await import("@/actions/option-selector-actions");
+    const warningCounts = await getCourseActionWarningCounts(courseIdStrings);
+
     // Enrich with progress data
     const enrichedCourses = courses.map((course: any) => {
-        const progress = progressObj[course._id.toString()] || {};
+        const cid = course._id.toString();
+        const progress = progressObj[cid] || {};
+        const warnings = warningCounts[cid] || {
+            dolgozatWarningCount: 0,
+            optionWarningCount: 0,
+        };
         
         // Count total pages
         let totalPages = 0;
@@ -320,10 +329,12 @@ export async function getStudentCourses() {
         }
 
         return {
-            _id: course._id.toString(),
+            _id: cid,
             title: course.title,
             description: course.description,
             thumbnail: course.thumbnail,
+            dolgozatWarningCount: warnings.dolgozatWarningCount,
+            optionWarningCount: warnings.optionWarningCount,
             progress: {
                 completedModules: progress.completedModules || [],
                 completedPages: progress.completedPages || [],
