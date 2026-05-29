@@ -3,26 +3,18 @@ import { authOptions } from "./auth"
 import { cookies } from "next/headers"
 import User, { UserRole } from "@/models/User"
 import connectDB from "./db"
-import { clearSessionCookies, requestHasSessionCookie } from "./next-auth-cookies"
 
 export async function getAuthSession() {
   const cookieStore = await cookies()
-  const hadSessionCookie = requestHasSessionCookie(cookieStore)
 
+  // getServerSession may log JWT_SESSION_ERROR for stale cookies; middleware clears those.
   let session = await getServerSession(authOptions)
-
-  // Invalid JWT (e.g. secret rotated) — drop cookies so the user can sign in again
-  if (hadSessionCookie && !session) {
-    clearSessionCookies(cookieStore)
-    return null
-  }
 
   if (!session && process.env.DEV_MODE === "true") {
     const devRole = (cookieStore.get("dev_role")?.value || "admin") as UserRole
     
     await connectDB()
     
-    // Find or create a specific dev user for this role
     let devUser = await User.findOne({ email: `${devRole}@example.com` })
     
     if (!devUser) {

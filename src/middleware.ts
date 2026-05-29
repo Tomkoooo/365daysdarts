@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { requestHasSessionCookie } from "@/lib/next-auth-cookies";
+import {
+  applyClearAuthCookies,
+  requestHasSessionCookie,
+} from "@/lib/next-auth-cookies";
 
 const PROTECTED_PREFIXES = ["/dashboard", "/admin", "/business", "/lecturer"];
 
@@ -8,18 +11,31 @@ function isProtectedPath(path: string) {
   return PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
-function isAuthApiPath(path: string) {
+function isAuthPath(path: string) {
   return path.startsWith("/api/auth/");
 }
 
-async function getValidToken(req: NextRequest) {
-  return getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+function isPublicAuthPage(path: string) {
+  return path === "/login" || path === "/register" || path.startsWith("/error");
 }
 
-function redirectToSignOut(req: NextRequest) {
-  const signOut = new URL("/api/auth/signout", req.url);
-  signOut.searchParams.set("callbackUrl", "/login?session=expired");
-  return NextResponse.redirect(signOut);
+async function getValidToken(req: NextRequest) {
+  try {
+    return await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  } catch {
+    return null;
+  }
+}
+
+function clearCookiesAndRedirect(req: NextRequest, destination: string) {
+  const url = new URL(destination, req.url);
+  const response = NextResponse.redirect(url);
+  return applyClearAuthCookies(response);
+}
+
+function clearCookiesAndContinue() {
+  const response = NextResponse.next();
+  return applyClearAuthCookies(response);
 }
 
 export async function middleware(req: NextRequest) {
@@ -29,13 +45,23 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Never intercept our cookie-clear route or other auth API handlers
+  if (path === "/api/auth/clear-session" || isAuthPath(path)) {
+    return NextResponse.next();
+  }
+
   const hasSessionCookie = requestHasSessionCookie(req.cookies);
 
-  // Stale/invalid JWT (e.g. after NEXTAUTH_SECRET rotation) — clear via sign-out
-  if (hasSessionCookie && !isAuthApiPath(path)) {
+  if (hasSessionCookie) {
     const token = await getValidToken(req);
+
     if (!token) {
-      return redirectToSignOut(req);
+      // Stale JWT after secret rotation — clear cookies without NextAuth signOut
+      if (isPublicAuthPage(path)) {
+        return clearCookiesAndContinue();
+      }
+      const login = `/login?session=expired`;
+      return clearCookiesAndRedirect(req, login);
     }
   }
 
@@ -47,7 +73,7 @@ export async function middleware(req: NextRequest) {
   if (!token) {
     const login = new URL("/login", req.url);
     login.searchParams.set("callbackUrl", path);
-    return NextResponse.redirect(login);
+    return clearCookiesAndRedirect(req, login.toString());
   }
 
   if (path.startsWith("/admin") && token.role !== "admin") {
@@ -75,10 +101,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Run on all routes except static assets so stale session cookies
-     * are cleared site-wide after NEXTAUTH_SECRET changes.
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
