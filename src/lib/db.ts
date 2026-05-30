@@ -43,6 +43,14 @@ async function connectDB() {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
+    const err = e as { code?: number; codeName?: string };
+    if (err?.code === 18 || err?.codeName === 'AuthenticationFailed') {
+      console.error(
+        '[MongoDB] Authentication failed. Check MONGODB_URI credentials and authSource on the server.',
+        'DB_NAME=',
+        process.env.DB_NAME ?? '(not set)'
+      );
+    }
     throw e;
   }
 

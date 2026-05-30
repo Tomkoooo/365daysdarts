@@ -939,6 +939,38 @@ export async function uploadSubmissionOnBehalf(
   return { success: true, submissionId: submission._id.toString() };
 }
 
+// --- Delete submission (lecturer / admin) ---
+
+export async function deleteSubmission(submissionId: string) {
+  const session = await getAuthSession();
+  if (!session?.user?.id) return { success: false, error: "Bejelentkezés szükséges" };
+
+  await connectDB();
+  const submission = await DolgozatSubmission.findById(submissionId);
+  if (!submission) return { success: false, error: "Beadás nem található" };
+
+  const dolgozat = await Dolgozat.findById(submission.dolgozatId);
+  if (!dolgozat) return { success: false, error: "Dolgozat nem található" };
+  if (!(await ensureLecturerCanAccessCourse(session, dolgozat.courseId.toString()))) {
+    return { success: false, error: "Nincs jogosultság" };
+  }
+
+  const db = mongoose.connection.db;
+  if (db && submission.photos?.length) {
+    const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName: "uploads" });
+    for (const photo of submission.photos) {
+      try {
+        await bucket.delete(photo.mediaId);
+      } catch {
+        /* file may already be missing */
+      }
+    }
+  }
+
+  await DolgozatSubmission.deleteOne({ _id: submissionId });
+  return { success: true };
+}
+
 // Tag submission photos in GridFS metadata (called after upload from client)
 export async function tagSubmissionMedia(mediaId: string, submissionId: string) {
   const session = await getAuthSession();

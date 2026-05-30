@@ -33,23 +33,30 @@ export type SubmissionRow = {
 export function SubmissionsTable({
   rows,
   gradeBasePath,
+  hiddenSubmissionIds = [],
   onUploadOnBehalf,
+  onDeleteSubmission,
 }: {
   rows: SubmissionRow[];
   gradeBasePath: string;
+  hiddenSubmissionIds?: string[];
   onUploadOnBehalf: (row: SubmissionRow) => void;
+  onDeleteSubmission?: (row: SubmissionRow) => void;
 }) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return rows;
-    return rows.filter(
+    const visible = rows.filter(
+      (r) => !r.submissionId || !hiddenSubmissionIds.includes(r.submissionId)
+    );
+    if (!q) return visible;
+    return visible.filter(
       (r) =>
         r.name.toLowerCase().includes(q) ||
         r.email.toLowerCase().includes(q)
     );
-  }, [rows, search]);
+  }, [rows, search, hiddenSubmissionIds]);
 
   return (
     <div className="space-y-4">
@@ -100,21 +107,35 @@ export function SubmissionsTable({
                     "—"
                   )}
                 </TableCell>
-                <TableCell className="text-right space-x-1">
-                  <Button
-                    size="sm"
-                    variant={row.status === "not_submitted" ? "default" : "outline"}
-                    onClick={() => onUploadOnBehalf(row)}
-                  >
-                    Beadás feltöltése
-                  </Button>
-                  {row.submissionId && row.photoCount > 0 && (
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`${gradeBasePath}/${row.submissionId}`}>
-                        {row.status === "graded" ? "Megtekintés" : "Értékelés"}
-                      </Link>
+                <TableCell className="text-right">
+                  <div className="flex flex-wrap justify-end gap-1">
+                    <Button
+                      size="sm"
+                      variant={row.status === "not_submitted" ? "default" : "outline"}
+                      onClick={() => onUploadOnBehalf(row)}
+                    >
+                      Beadás feltöltése
                     </Button>
-                  )}
+                    {row.submissionId && row.photoCount > 0 && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`${gradeBasePath}/${row.submissionId}`}>
+                          {row.status === "graded" ? "Megtekintés" : "Értékelés"}
+                        </Link>
+                      </Button>
+                    )}
+                    {row.submissionId &&
+                      row.status !== "not_submitted" &&
+                      onDeleteSubmission && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => onDeleteSubmission(row)}
+                        >
+                          Törlés
+                        </Button>
+                      )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

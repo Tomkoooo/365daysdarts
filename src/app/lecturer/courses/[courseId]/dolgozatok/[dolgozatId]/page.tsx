@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getDolgozatSubmissionsOverview, exportDolgozatGrades } from "@/actions/dolgozat-actions";
 import { SubmissionsTable, type SubmissionRow } from "@/components/dolgozat/SubmissionsTable";
 import { OnBehalfUploadDialog } from "@/components/dolgozat/OnBehalfUploadDialog";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, FileSpreadsheet, Pencil, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useScheduledSubmissionDelete } from "@/hooks/use-scheduled-submission-delete";
 
 export default function DolgozatSubmissionsPage() {
   const params = useParams();
@@ -19,6 +20,12 @@ export default function DolgozatSubmissionsPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [onBehalfRow, setOnBehalfRow] = useState<SubmissionRow | null>(null);
+  const loadRef = useRef<() => Promise<void>>(async () => {});
+  const { hiddenSubmissionIds, scheduleSubmissionDelete } = useScheduledSubmissionDelete({
+    onDeleted: () => {
+      void loadRef.current();
+    },
+  });
 
   async function load() {
     try {
@@ -30,6 +37,8 @@ export default function DolgozatSubmissionsPage() {
       setLoading(false);
     }
   }
+
+  loadRef.current = load;
 
   useEffect(() => {
     load();
@@ -125,7 +134,14 @@ export default function DolgozatSubmissionsPage() {
       <SubmissionsTable
         rows={data.rows}
         gradeBasePath={gradeBasePath}
+        hiddenSubmissionIds={hiddenSubmissionIds}
         onUploadOnBehalf={(row) => setOnBehalfRow(row)}
+        onDeleteSubmission={(row) => {
+          if (!row.submissionId) return;
+          scheduleSubmissionDelete(row.submissionId, row.name, {
+            hasGrade: row.status === "graded",
+          });
+        }}
       />
 
       {onBehalfRow && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getSubmissionForGrading } from "@/actions/dolgozat-actions";
@@ -9,17 +9,24 @@ import { GradePanel } from "@/components/dolgozat/GradePanel";
 import { SubmissionStatusBadge } from "@/components/dolgozat/SubmissionStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getSubmissionStatus } from "@/lib/dolgozat-utils";
+import { useScheduledSubmissionDelete } from "@/hooks/use-scheduled-submission-delete";
 
 export default function GradeSubmissionPage() {
+  const router = useRouter();
   const params = useParams();
   const courseId = params.courseId as string;
   const dolgozatId = params.dolgozatId as string;
   const submissionId = params.submissionId as string;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { scheduleSubmissionDelete } = useScheduledSubmissionDelete({
+    onAfterPermanentDelete: () => {
+      router.push(`/lecturer/courses/${courseId}/dolgozatok/${dolgozatId}`);
+    },
+  });
 
   async function load() {
     try {
@@ -70,8 +77,25 @@ export default function GradeSubmissionPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <h2 className="font-semibold mb-3">Beadott képek</h2>
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-semibold">Beadott fájlok</h2>
+            {submission.photos?.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() =>
+                  scheduleSubmissionDelete(submissionId, submission.user.name, {
+                    hasGrade: !!submission.gradedAt,
+                  })
+                }
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Beadás törlése
+              </Button>
+            )}
+          </div>
           <SubmissionFilesGallery files={submission.photos} />
         </div>
         <div>
