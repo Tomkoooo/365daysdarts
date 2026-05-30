@@ -20,6 +20,11 @@ const ContentPageSchema = new Schema(
     slug: { type: String, required: true, unique: true, index: true },
     title: { type: String, required: true },
     status: { type: String, enum: ["draft", "published"], default: "draft" },
+    meta: {
+      seoTitle: { type: String, default: "" },
+      seoDescription: { type: String, default: "" },
+      ogImage: { type: String, default: "" },
+    },
     draftBlocks: { type: [ContentBlockSchema], default: [] },
     publishedBlocks: { type: [ContentBlockSchema], default: [] },
     publishedAt: { type: Date },

@@ -50,8 +50,8 @@ export function ModuleSettings({ module, onClose, onSave }: ModuleSettingsProps)
                 </DialogHeader>
                 
                 <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="passingScore" className="text-right">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+                        <Label htmlFor="passingScore" className="sm:text-right">
                             Sikeres Pontszám (%)
                         </Label>
                         <Input
@@ -64,8 +64,8 @@ export function ModuleSettings({ module, onClose, onSave }: ModuleSettingsProps)
                             className="col-span-3"
                         />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="questionCount" className="text-right">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+                        <Label htmlFor="questionCount" className="sm:text-right">
                             Kérdések Száma
                         </Label>
                         <Input
@@ -77,8 +77,8 @@ export function ModuleSettings({ module, onClose, onSave }: ModuleSettingsProps)
                             className="col-span-3"
                         />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="timeLimit" className="text-right">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+                        <Label htmlFor="timeLimit" className="sm:text-right">
                             Időkorlát (perc)
                         </Label>
                         <Input

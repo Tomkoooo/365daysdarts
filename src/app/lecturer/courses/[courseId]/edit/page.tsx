@@ -13,8 +13,11 @@ import { FinalExamSettings } from "@/components/lecturer/FinalExamSettings"
 import { ExcelUploadModal } from "@/components/lecturer/ExcelUploadModal"
 import { CourseQuestionManager } from "@/components/lecturer/CourseQuestionManager"
 import { exportQuestionsToExcel } from "@/actions/bulk-upload-actions"
-import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upload, Download, Loader2, Database, Video, BookOpen, Eye, FileQuestion, GraduationCap, Pencil, ChevronUp, ChevronDown, ClipboardList } from "lucide-react"
+import { Settings, Trash2, Plus, ChevronRight, FileText, Folder, FolderOpen, Upload, Download, Loader2, Database, Video, BookOpen, Eye, FileQuestion, GraduationCap, Pencil, ChevronUp, ChevronDown, ClipboardList, Search, ChevronDown as ChevronDownIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { MediaManager } from "@/components/lecturer/MediaManager"
 import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import CoursePlayerClient from "@/components/course/CoursePlayerClient"
 import { toast } from "sonner"
@@ -40,6 +43,12 @@ export default function CourseEditorPage() {
   const [isExporting, setIsExporting] = useState(false)
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [managingQuestions, setManagingQuestions] = useState(false)
+  const [collapsedModules, setCollapsedModules] = useState<Record<string, boolean>>({})
+  const [courseSearch, setCourseSearch] = useState("")
+  const [editingMetadata, setEditingMetadata] = useState(false)
+  const [metadataForm, setMetadataForm] = useState({ description: "", price: 0, thumbnail: "" })
+  const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
 
   // Quick inputs state
   const [newModuleTitle, setNewModuleTitle] = useState("")
@@ -56,11 +65,51 @@ export default function CourseEditorPage() {
       try {
           const data = await getCourseWithContent(courseId)
           setCourse(data)
+          if (data) {
+            setMetadataForm({
+              description: data.description || "",
+              price: data.price || 0,
+              thumbnail: data.thumbnail || "",
+            })
+          }
       } catch (e) {
           console.error(e)
       } finally {
           setLoading(false)
       }
+  }
+
+  async function handleTogglePublish() {
+    setIsPublishing(true)
+    try {
+      await updateCourse(courseId, { isPublished: !course.isPublished })
+      toast.success(course.isPublished ? "Kurzus piszkozatba állítva" : "Kurzus közzétéve")
+      loadCourse()
+    } catch (e) {
+      toast.error("Hiba a közzététel során")
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  async function handleSaveMetadata() {
+    try {
+      await updateCourse(courseId, metadataForm)
+      toast.success("Kurzus adatok mentve")
+      setEditingMetadata(false)
+      loadCourse()
+    } catch (e) {
+      toast.error("Mentési hiba")
+    }
+  }
+
+  function toggleModuleCollapse(moduleId: string) {
+    setCollapsedModules((prev) => ({ ...prev, [moduleId]: !prev[moduleId] }))
+  }
+
+  function matchesSearch(text: string) {
+    if (!courseSearch.trim()) return true
+    return text.toLowerCase().includes(courseSearch.trim().toLowerCase())
   }
 
   async function handleAddModule() {
@@ -213,6 +262,9 @@ export default function CourseEditorPage() {
                        </Button>
                    </div>
                    <p className="text-muted-foreground">Tanterv Kezelése</p>
+                   <Button size="sm" variant="link" className="px-0 h-auto" onClick={() => setEditingMetadata(true)}>
+                     Kurzus adatok szerkesztése
+                   </Button>
                 </div>
                 <div className="flex gap-2 w-full md:w-auto flex-wrap">
                      <Button variant="outline" asChild>
@@ -240,8 +292,25 @@ export default function CourseEditorPage() {
                          </DialogContent>
                      </Dialog>
 
-                     <Button>Közzététel</Button>
+                     <Button
+                       variant={course.isPublished ? "outline" : "default"}
+                       onClick={handleTogglePublish}
+                       disabled={isPublishing}
+                     >
+                       {isPublishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                       {course.isPublished ? "Piszkozat mód" : "Közzététel"}
+                     </Button>
                 </div>
+            </div>
+
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Keresés modulban, fejezetben, oldalon..."
+                value={courseSearch}
+                onChange={(e) => setCourseSearch(e.target.value)}
+                className="pl-9"
+              />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -255,13 +324,35 @@ export default function CourseEditorPage() {
                             <p className="px-4 text-xs text-muted-foreground italic">
                                 Hozzon létre modulokat a fejezetek rendszerezéséhez. Minden modul saját kérdésbankkal rendelkezik a vizsgákhoz.
                             </p>
-                            {course.modules?.filter((m: any) => !hiddenIds.includes(m._id)).map((module: any) => (
+                            {course.modules?.filter((m: any) => !hiddenIds.includes(m._id)).map((module: any) => {
+                              const moduleMatches =
+                                matchesSearch(module.title) ||
+                                module.chapters?.some(
+                                  (c: any) =>
+                                    matchesSearch(c.title) ||
+                                    c.pages?.some((p: any) => matchesSearch(p.title))
+                                );
+                              if (!moduleMatches) return null;
+                              const isCollapsed = collapsedModules[module._id];
+
+                              return (
                                 <div key={module._id} className="border rounded-lg bg-card shadow-sm overflow-hidden">
-                                     {/* Module Header ... */}
-                                    <div className="flex items-center justify-between p-4 bg-muted/20 border-b">
-                                        <div className="flex items-center gap-2 font-semibold">
-                                            <FolderOpen className="h-5 w-5 text-blue-600" />
-                                            {module.title}
+                                    <div className="flex items-center justify-between p-4 bg-muted/20 border-b flex-wrap gap-2">
+                                        <div className="flex items-center gap-2 font-semibold min-w-0">
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-7 w-7 shrink-0"
+                                              onClick={() => toggleModuleCollapse(module._id)}
+                                            >
+                                              {isCollapsed ? (
+                                                <ChevronRight className="h-4 w-4" />
+                                              ) : (
+                                                <ChevronDownIcon className="h-4 w-4" />
+                                              )}
+                                            </Button>
+                                            <FolderOpen className="h-5 w-5 text-blue-600 shrink-0" />
+                                            <span className="truncate">{module.title}</span>
                                             <div className="flex items-center ml-2">
                                                 <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setRenamingModule(module)} title="Modul Átnevezése">
                                                     <Pencil className="h-3 w-3" />
@@ -277,13 +368,20 @@ export default function CourseEditorPage() {
                                                 </Button>
                                             </div>
                                         </div>
-                                        <Button size="sm" variant="outline" onClick={() => handleAddChapter(module._id)} className="h-8">
+                                        <Button size="sm" variant="outline" onClick={() => handleAddChapter(module._id)} className="h-8 shrink-0">
                                             <Plus className="h-3 w-3 mr-1" /> Fejezet
                                         </Button>
                                     </div>
                                     
+                                    {!isCollapsed && (
                                     <div className="p-4 space-y-4">
-                                        {module.chapters?.filter((c: any) => !hiddenIds.includes(c._id)).map((chapter: any) => (
+                                        {module.chapters?.filter((c: any) => !hiddenIds.includes(c._id)).map((chapter: any) => {
+                                          const chapterMatches =
+                                            matchesSearch(chapter.title) ||
+                                            chapter.pages?.some((p: any) => matchesSearch(p.title));
+                                          if (!chapterMatches) return null;
+
+                                          return (
                                             <div key={chapter._id} className="pl-4 border-l-2 border-muted space-y-3">
                                                  <div className="flex items-center justify-between">
                                                     <div className="font-medium flex flex-col gap-0.5">
@@ -300,7 +398,7 @@ export default function CourseEditorPage() {
                                                             Használja a jobb oldali gombokat oldal hozzáadásához
                                                          </span>
                                                      </div>
-                                                     <div className="flex items-center gap-1">
+                                                     <div className="flex items-center gap-1 flex-wrap">
                                                         {/* Explicit Content Buttons */}
                                                         <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => handleAddPage(chapter._id, 'text')} title="Szöveges és képi oldal létrehozása">
                                                             <FileText className="h-3 w-3" /> Szöveg
@@ -328,7 +426,7 @@ export default function CourseEditorPage() {
                                                                 {page.type === 'image' && <Eye className="h-4 w-4 text-blue-500" />}
                                                                 <span className="text-sm font-medium">{page.title}</span>
                                                              </div>
-                                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                                             <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1 shrink-0">
                                                                  <div className="flex flex-col mr-1">
                                                                      <Button 
                                                                         size="icon" 
@@ -379,10 +477,13 @@ export default function CourseEditorPage() {
                                                      {chapter.pages?.length === 0 && <div className="text-sm text-muted-foreground italic px-2">Nincsenek oldalak. Adjon hozzá tartalmat fent.</div>}
                                                  </div>
                                             </div>
-                                        ))}
+                                          );
+                                        })}
                                     </div>
+                                    )}
                                 </div>
-                            ))}
+                              );
+                            })}
                             
                             <div className="p-4 border rounded-lg border-dashed flex gap-2 justify-center items-center">
                                 <Input 
@@ -554,6 +655,73 @@ export default function CourseEditorPage() {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+
+        <Dialog open={editingMetadata} onOpenChange={setEditingMetadata}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Kurzus adatok</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Leírás</Label>
+                <Textarea
+                  value={metadataForm.description}
+                  onChange={(e) =>
+                    setMetadataForm({ ...metadataForm, description: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Ár (HUF)</Label>
+                <Input
+                  type="number"
+                  value={metadataForm.price}
+                  onChange={(e) =>
+                    setMetadataForm({ ...metadataForm, price: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Borítókép</Label>
+                <div className="flex gap-2 flex-wrap">
+                  <Input
+                    value={metadataForm.thumbnail}
+                    onChange={(e) =>
+                      setMetadataForm({ ...metadataForm, thumbnail: e.target.value })
+                    }
+                    placeholder="URL or upload"
+                    className="flex-1 min-w-[200px]"
+                  />
+                  <Button type="button" variant="outline" onClick={() => setIsMediaPickerOpen(true)}>
+                    Médiatár
+                  </Button>
+                </div>
+                {metadataForm.thumbnail && (
+                  <img
+                    src={metadataForm.thumbnail}
+                    alt="Cover preview"
+                    className="h-24 w-auto rounded border object-cover"
+                  />
+                )}
+              </div>
+            </div>
+            <DialogFooter className="flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setEditingMetadata(false)}>
+                Mégse
+              </Button>
+              <Button onClick={handleSaveMetadata}>Mentés</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <MediaManager
+          open={isMediaPickerOpen}
+          onClose={() => setIsMediaPickerOpen(false)}
+          onSelect={(url) => {
+            setMetadataForm((prev) => ({ ...prev, thumbnail: url }));
+            setIsMediaPickerOpen(false);
+          }}
+        />
     </div>
   )
 }

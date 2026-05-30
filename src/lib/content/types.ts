@@ -9,6 +9,9 @@ export const CONTENT_BLOCK_TYPES = [
   "featureCards",
   "buttonRow",
   "peopleGrid",
+  "container",
+  "card",
+  "form",
 ] as const;
 
 export type ContentBlockType = (typeof CONTENT_BLOCK_TYPES)[number];
@@ -22,6 +25,9 @@ export const BLOCK_TYPE_LABELS: Record<ContentBlockType, string> = {
   featureCards: "Kártyák",
   buttonRow: "Gombok",
   peopleGrid: "Személyek",
+  container: "Konténer",
+  card: "Kártya",
+  form: "Űrlap",
 };
 
 const ctaLinkSchema = z.object({
@@ -104,6 +110,41 @@ const peopleGridSchema = z.object({
   people: z.array(personSchema).min(1, "Add at least one person").max(24),
 });
 
+const containerSchema = z.object({
+  title: z.string().trim().max(160).default(""),
+  maxWidth: z.enum(["sm", "md", "lg", "xl", "full"]).default("lg"),
+  padding: z.enum(["none", "sm", "md", "lg"]).default("md"),
+  background: z.enum(["default", "muted", "navy"]).default("default"),
+  html: z.string().trim().default("<p></p>"),
+});
+
+const cardBlockSchema = z.object({
+  title: z.string().trim().min(1, "Card title is required"),
+  description: z.string().trim().max(2000).default(""),
+  imageUrl: z.string().trim().max(500).default(""),
+  imageAlt: z.string().trim().max(180).default(""),
+  buttonLabel: z.string().trim().max(80).default(""),
+  buttonHref: z.string().trim().max(300).default(""),
+  variant: z.enum(["default", "outline", "featured"]).default("default"),
+});
+
+const formFieldSchema = z.object({
+  name: z.string().trim().min(1),
+  label: z.string().trim().min(1),
+  type: z.enum(["text", "email", "textarea", "tel"]).default("text"),
+  required: z.boolean().default(false),
+  placeholder: z.string().trim().max(200).default(""),
+});
+
+const formBlockSchema = z.object({
+  title: z.string().trim().max(160).default(""),
+  description: z.string().trim().max(800).default(""),
+  submitLabel: z.string().trim().min(1).default("Submit"),
+  successMessage: z.string().trim().max(400).default("Thank you for your submission."),
+  actionUrl: z.string().trim().max(500).default(""),
+  fields: z.array(formFieldSchema).min(1, "Add at least one field").max(12),
+});
+
 export const blockPayloadSchemas: Record<ContentBlockType, z.ZodSchema> = {
   hero: heroSchema,
   richText: richTextSchema,
@@ -113,6 +154,9 @@ export const blockPayloadSchemas: Record<ContentBlockType, z.ZodSchema> = {
   featureCards: featureCardsSchema,
   buttonRow: buttonRowSchema,
   peopleGrid: peopleGridSchema,
+  container: containerSchema,
+  card: cardBlockSchema,
+  form: formBlockSchema,
 };
 
 export function getDefaultPayload(type: ContentBlockType) {
@@ -182,6 +226,41 @@ export function getDefaultPayload(type: ContentBlockType) {
             imageUrl: "",
             buttonLabel: "",
             buttonHref: "",
+          },
+        ],
+      };
+    case "container":
+      return {
+        title: "",
+        maxWidth: "lg",
+        padding: "md",
+        background: "default",
+        html: "<p>Container content...</p>",
+      };
+    case "card":
+      return {
+        title: "Card title",
+        description: "Card description",
+        imageUrl: "",
+        imageAlt: "",
+        buttonLabel: "",
+        buttonHref: "",
+        variant: "default",
+      };
+    case "form":
+      return {
+        title: "Contact us",
+        description: "",
+        submitLabel: "Send",
+        successMessage: "Thank you for your submission.",
+        actionUrl: "",
+        fields: [
+          {
+            name: "email",
+            label: "Email",
+            type: "email",
+            required: true,
+            placeholder: "you@example.com",
           },
         ],
       };

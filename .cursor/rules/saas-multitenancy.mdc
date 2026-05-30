@@ -1,0 +1,26 @@
+---
+description: SaaS white-label conventions — keep shared UI tenant-neutral
+globs: src/components/admin/**/*,src/components/layout/**/*
+alwaysApply: false
+---
+
+# SaaS / White-Label
+
+## Branding
+
+- Read site name and logos from `BrandingSettingsService`, not hardcoded strings
+- Theme colors from `ThemeSettingsService` → CSS variables on `<html>`
+- Footer copy from `FooterSettingsService`
+
+## Admin chrome
+
+- Use generic labels: "Admin", "Courses", "Content", "Settings"
+- Sport-specific copy belongs in CMS seed content or course data, not admin shell
+
+## Avoid in shared components
+
+- Hardcoded "365daysdarts", "darts", sport-specific nav labels in reusable layout (migrate to CMS nav or settings when possible)
+
+## New features
+
+When adding public-facing chrome, ask: "Would this work for a tennis or soccer tenant?" If no, make it configurable.

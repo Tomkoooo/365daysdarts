@@ -1,0 +1,35 @@
+---
+description: CMS block editor and page builder conventions
+globs: src/lib/content/**/*,src/components/content/**/*,src/components/dashboard/content/**/*,src/actions/content-actions.ts,src/services/page-content.ts
+alwaysApply: false
+---
+
+# CMS Contract
+
+## Block types
+
+Defined in `CONTENT_BLOCK_TYPES` + Zod schemas in `src/lib/content/types.ts`. Every new block needs:
+
+1. Schema + default payload in `types.ts`
+2. Renderer case in `MarketingBlockRenderer.tsx`
+3. Editor form in CMS editor
+4. Smoke check if applicable
+
+## Pages
+
+- Stored in `ContentPage` with `slug`, `draftBlocks`, `publishedBlocks`, `meta` (SEO)
+- Public routes: `/` = slug `home`; `/foo/bar` = slug `foo/bar`
+- Do not add static marketing `page.tsx` files for CMS content
+
+## Draft / publish
+
+- Edits go to `draftBlocks`; publish copies to `publishedBlocks`
+- Always `revalidatePath` for the page's public URL on publish
+
+## PageContentService
+
+Use for read paths that need draft/publish abstraction. Server actions in `content-actions.ts` remain the mutation API.
+
+## Media
+
+Blocks with images: support upload (MediaManager) AND manual URL. Default to upload-or-link pattern.

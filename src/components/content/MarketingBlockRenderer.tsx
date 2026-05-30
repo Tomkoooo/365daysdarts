@@ -38,6 +38,15 @@ export function MarketingBlockRenderer({ blocks, compact = false }: MarketingBlo
         if (block.type === "peopleGrid") {
           return <PeopleGridBlock key={block.blockId} payload={block.payload} />;
         }
+        if (block.type === "container") {
+          return <ContainerBlock key={block.blockId} payload={block.payload} />;
+        }
+        if (block.type === "card") {
+          return <CardBlock key={block.blockId} payload={block.payload} />;
+        }
+        if (block.type === "form") {
+          return <FormBlock key={block.blockId} payload={block.payload} />;
+        }
         return null;
       })}
     </div>
@@ -235,6 +244,130 @@ function PeopleGridBlock({ payload }: { payload: any }) {
             </Card>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+const maxWidthClass: Record<string, string> = {
+  sm: "max-w-screen-sm",
+  md: "max-w-screen-md",
+  lg: "max-w-screen-lg",
+  xl: "max-w-screen-xl",
+  full: "max-w-full",
+};
+
+const paddingClass: Record<string, string> = {
+  none: "py-0",
+  sm: "py-8",
+  md: "py-16",
+  lg: "py-24",
+};
+
+const bgClass: Record<string, string> = {
+  default: "bg-background",
+  muted: "bg-muted/20",
+  navy: "bg-navy-darker",
+};
+
+function ContainerBlock({ payload }: { payload: any }) {
+  return (
+    <section className={`${paddingClass[payload.padding] || "py-16"} ${bgClass[payload.background] || "bg-background"}`}>
+      <div className={`container mx-auto px-4 ${maxWidthClass[payload.maxWidth] || "max-w-screen-lg"}`}>
+        {payload.title && <h2 className="text-3xl font-bold mb-6">{payload.title}</h2>}
+        <article className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: payload.html || "" }} />
+      </div>
+    </section>
+  );
+}
+
+function CardBlock({ payload }: { payload: any }) {
+  const variantClass =
+    payload.variant === "featured"
+      ? "border-cta/50 bg-navy"
+      : payload.variant === "outline"
+        ? "border-dashed"
+        : "bg-card";
+
+  return (
+    <section className="py-12 bg-background">
+      <div className="container mx-auto px-4 max-w-2xl">
+        <Card className={variantClass}>
+          {payload.imageUrl && (
+            <img
+              src={payload.imageUrl}
+              alt={payload.imageAlt || payload.title || "Card image"}
+              className="w-full h-48 object-cover rounded-t-lg"
+            />
+          )}
+          <CardHeader>
+            <CardTitle>{payload.title}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {payload.description && <p className="text-muted-foreground">{payload.description}</p>}
+            {payload.buttonLabel && payload.buttonHref && (
+              <Button asChild>
+                <Link href={payload.buttonHref}>{payload.buttonLabel}</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
+function FormBlock({ payload }: { payload: any }) {
+  return (
+    <section className="py-16 bg-background">
+      <div className="container mx-auto px-4 max-w-xl">
+        {payload.title && <h2 className="text-3xl font-bold mb-2">{payload.title}</h2>}
+        {payload.description && <p className="text-muted-foreground mb-6">{payload.description}</p>}
+        <Card>
+          <CardContent className="pt-6">
+            <form
+              action={payload.actionUrl || undefined}
+              method={payload.actionUrl ? "post" : undefined}
+              className="space-y-4"
+              onSubmit={
+                payload.actionUrl
+                  ? undefined
+                  : (e) => {
+                      e.preventDefault();
+                      alert(payload.successMessage || "Thank you!");
+                    }
+              }
+            >
+              {(payload.fields || []).map((field: any) => (
+                <div key={field.name} className="space-y-1">
+                  <label className="text-sm font-medium" htmlFor={field.name}>
+                    {field.label}
+                    {field.required ? " *" : ""}
+                  </label>
+                  {field.type === "textarea" ? (
+                    <textarea
+                      id={field.name}
+                      name={field.name}
+                      required={field.required}
+                      placeholder={field.placeholder}
+                      className="w-full min-h-[100px] rounded-md border bg-background px-3 py-2 text-sm"
+                    />
+                  ) : (
+                    <input
+                      id={field.name}
+                      name={field.name}
+                      type={field.type || "text"}
+                      required={field.required}
+                      placeholder={field.placeholder}
+                      className="w-full h-10 rounded-md border bg-background px-3 py-2 text-sm"
+                    />
+                  )}
+                </div>
+              ))}
+              <Button type="submit">{payload.submitLabel || "Submit"}</Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </section>
   );
