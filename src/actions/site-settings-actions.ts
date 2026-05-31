@@ -12,16 +12,21 @@ import {
   FooterSettingsService,
   type FooterSettings,
 } from "@/services/footer-settings";
+import {
+  EmailSettingsService,
+  type EmailSettings,
+} from "@/services/email-settings";
 
 export async function getSiteSettingsAdmin() {
   await requireAdmin();
-  const [seo, branding, theme, footer] = await Promise.all([
+  const [seo, branding, theme, footer, email] = await Promise.all([
     SeoSettingsService.get(),
     BrandingSettingsService.get(),
     ThemeSettingsService.get(),
     FooterSettingsService.get(),
+    EmailSettingsService.get(),
   ]);
-  return { seo, branding, theme, footer };
+  return { seo, branding, theme, footer, email };
 }
 
 export async function updateSeoSettings(input: Partial<SeoSettings>) {
@@ -52,6 +57,18 @@ export async function updateFooterSettings(input: Partial<FooterSettings>) {
   await requireAdmin();
   const result = await FooterSettingsService.update(input);
   revalidatePath("/", "layout");
+  revalidatePath("/admin/settings");
+  return result;
+}
+
+export async function getEmailSettingsAdmin() {
+  await requireAdmin();
+  return EmailSettingsService.get();
+}
+
+export async function updateEmailSettings(input: Partial<EmailSettings>) {
+  await requireAdmin();
+  const result = await EmailSettingsService.update(input);
   revalidatePath("/admin/settings");
   return result;
 }

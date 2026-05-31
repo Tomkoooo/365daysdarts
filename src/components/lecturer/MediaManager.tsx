@@ -10,6 +10,7 @@ import { formatDistanceToNow } from "date-fns"
 import { hu } from "date-fns/locale"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useUpload } from "@/components/providers/UploadContext"
+import { useScheduledDelete } from "@/hooks/use-scheduled-delete"
 
 interface MediaFile {
     id: string;
@@ -45,6 +46,7 @@ export function MediaManager({ open, onClose, onSelect }: MediaManagerProps) {
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState("")
     const [activeTab, setActiveTab] = useState("library")
+    const { hiddenIds, scheduleDelete } = useScheduledDelete()
 
     useEffect(() => {
         if (open) {
@@ -91,52 +93,50 @@ export function MediaManager({ open, onClose, onSelect }: MediaManagerProps) {
         }
     }
 
-    async function handleDelete(id: string) {
-        if (!confirm("Biztosan törölni szeretnéd ezt a fájlt? Ez a művelet nem vonható vissza.")) return
-
-        setDeletingId(id)
-        try {
-            const res = await fetch(`/api/media/${id}`, { method: 'DELETE' })
-            const data = await res.json()
-            if (data.success) {
-                setMedia(media.filter(m => m.id !== id))
-                toast.success("Sikeres törlés", {
-                    description: "A fájl véglegesen törölve lett."
-                })
-            } else {
-                throw new Error(data.message)
-            }
-        } catch (err) {
-            console.error("Delete failed", err)
-            toast.error("Törlés sikertelen", {
-                description: "Hiba történt a fájl törlése közben."
-            })
-        } finally {
-            setDeletingId(null)
-        }
+    function handleDelete(id: string, name: string) {
+        scheduleDelete(id, {
+            confirmMessage: `Biztosan törli a „${name}” fájlt? A törlés 10 másodpercig visszavonható.`,
+            toastTitle: "Fájl törölve",
+            onExecute: async () => {
+                setDeletingId(id)
+                try {
+                    const res = await fetch(`/api/media/${id}`, { method: "DELETE" })
+                    const data = await res.json()
+                    if (!data.success) {
+                        return { success: false, error: data.message || "Törlés sikertelen" }
+                    }
+                } finally {
+                    setDeletingId(null)
+                }
+            },
+            onAfterExecute: () => fetchMedia(),
+        })
     }
 
-    async function handleDeleteSession(uploadId: string) {
-        if (!confirm("Biztosan törölni szeretnéd ezt a megszakított feltöltést?")) return
-
-        setDeletingId(uploadId)
-        try {
-            const res = await fetch(`/api/upload/chunk?uploadId=${uploadId}`, { method: 'DELETE' })
-            const data = await res.json()
-            if (data.success) {
-                setSessions(sessions.filter(s => s._id !== uploadId))
-                toast.success("Feltöltés törölve", {
-                    description: "Az ideiglenes fájltöredékek törlésre kerültek."
-                })
-            }
-        } catch (err) {
-            console.error("Delete session failed", err)
-        } finally {
-            setDeletingId(null)
-        }
+    function handleDeleteSession(uploadId: string, filename: string) {
+        scheduleDelete(uploadId, {
+            confirmMessage: `Biztosan törli a megszakított „${filename}” feltöltést? A törlés 10 másodpercig visszavonható.`,
+            toastTitle: "Feltöltés törölve",
+            onExecute: async () => {
+                setDeletingId(uploadId)
+                try {
+                    const res = await fetch(`/api/upload/chunk?uploadId=${uploadId}`, {
+                        method: "DELETE",
+                    })
+                    const data = await res.json()
+                    if (!data.success) {
+                        return { success: false, error: "Törlés sikertelen" }
+                    }
+                } finally {
+                    setDeletingId(null)
+                }
+            },
+            onAfterExecute: () => fetchSessions(),
+        })
     }
 
-    const filteredMedia = media.filter(m => 
+    const filteredMedia = media.filter(m =>
+        !hiddenIds.includes(m.id) &&
         (m.originalName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         (m.filename || "").toLowerCase().includes(searchQuery.toLowerCase())
     )
@@ -263,7 +263,7 @@ export function MediaManager({ open, onClose, onSelect }: MediaManagerProps) {
                                                 variant="ghost" 
                                                 size="icon" 
                                                 className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                onClick={() => handleDelete(item.id)}
+                                                onClick={() => handleDelete(item.id, item.originalName || item.filename)}
                                                 disabled={deletingId === item.id}
                                             >
                                                 {deletingId === item.id ? (
@@ -291,7 +291,7 @@ export function MediaManager({ open, onClose, onSelect }: MediaManagerProps) {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-2">
-                                {sessions.map((session) => (
+                                {sessions.filter((s) => !hiddenIds.includes(s._id)).map((session) => (
                                     <div 
                                         key={session._id} 
                                         className="flex items-center gap-4 p-3 rounded-xl border bg-card hover:border-primary/50 transition-all group"
@@ -330,7 +330,12 @@ export function MediaManager({ open, onClose, onSelect }: MediaManagerProps) {
                                                 variant="ghost" 
                                                 size="icon" 
                                                 className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                onClick={() => handleDeleteSession(session._id)}
+                                                onClick={() =>
+                                                  handleDeleteSession(
+                                                    session._id,
+                                                    session.filename || "Ismeretlen fájl"
+                                                  )
+                                                }
                                                 disabled={deletingId === session._id}
                                             >
                                                 {deletingId === session._id ? (

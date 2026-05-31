@@ -12,6 +12,7 @@ import {
 } from "@/lib/option-selector-utils";
 import mongoose from "mongoose";
 import * as XLSX from "xlsx";
+import { notifyPublishedOptionSelector } from "@/lib/email-notifications";
 
 export type OptionSelectorOptionInput = {
   _id?: string;
@@ -216,6 +217,14 @@ export async function createOptionSelector(courseId: string, input: OptionSelect
     isPublished: input.isPublished ?? false,
   });
 
+  if (doc.isPublished) {
+    notifyPublishedOptionSelector({
+      courseId,
+      title: doc.title,
+      description: doc.description,
+    }).catch(console.error);
+  }
+
   return { success: true, id: doc._id.toString() };
 }
 
@@ -237,6 +246,8 @@ export async function updateOptionSelector(id: string, input: OptionSelectorInpu
   if (!input.title?.trim()) {
     return { success: false, error: "A cím kötelező" };
   }
+
+  const wasPublished = existing.isPublished;
 
   const existingOptionIds = new Set(
     existing.options.map((o: { _id: { toString(): string } }) => o._id.toString())
@@ -267,6 +278,15 @@ export async function updateOptionSelector(id: string, input: OptionSelectorInpu
   ) as any;
 
   await existing.save();
+
+  if (!wasPublished && existing.isPublished) {
+    notifyPublishedOptionSelector({
+      courseId,
+      title: existing.title,
+      description: existing.description,
+    }).catch(console.error);
+  }
+
   return { success: true };
 }
 

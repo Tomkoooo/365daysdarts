@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Eye, X } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
-  student: "Student",
-  lecturer: "Lecturer",
-  business: "Business",
+  student: "Tanuló",
+  lecturer: "Oktató",
+  business: "Üzleti",
 };
 
 export function RolePreviewBanner({ role }: { role: string }) {
@@ -17,14 +17,14 @@ export function RolePreviewBanner({ role }: { role: string }) {
         <div className="flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-200">
           <Eye className="h-4 w-4 shrink-0" />
           <span>
-            Preview mode — viewing as <strong>{ROLE_LABELS[role] || role}</strong>.
-            Your session is still admin; this is UI-only.
+            Előnézeti mód — <strong>{ROLE_LABELS[role] || role}</strong> nézetben.
+            A munkamenet továbbra is admin; ez csak UI előnézet.
           </span>
         </div>
         <Button size="sm" variant="outline" asChild className="shrink-0">
           <Link href="/admin">
             <X className="h-4 w-4 mr-1" />
-            Exit preview
+            Előnézet bezárása
           </Link>
         </Button>
       </div>

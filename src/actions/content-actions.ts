@@ -73,7 +73,11 @@ export async function getContentPageAdmin(slug: string) {
   });
 }
 
-export async function upsertContentPage(input: { slug: string; title: string }) {
+export async function upsertContentPage(input: {
+  slug: string;
+  title: string;
+  templateId?: string;
+}) {
   const user = await requireAdmin();
   await connectDB();
 
@@ -86,15 +90,23 @@ export async function upsertContentPage(input: { slug: string; title: string }) 
   const existing = await ContentPage.findOne({ slug });
   if (existing) {
     existing.title = title;
+    if (input.templateId) {
+      existing.templateId = input.templateId;
+    }
     existing.updatedBy = user.id;
     await existing.save();
   } else {
+    const { getTemplateById, buildBlocksFromTemplate } = await import("@/features/templates/registry");
+    const template = input.templateId ? getTemplateById(input.templateId) : null;
+    const draftBlocks = template ? buildBlocksFromTemplate(template) : [];
+
     await ContentPage.create({
       slug,
       title,
+      templateId: input.templateId || "",
       updatedBy: user.id,
       status: "draft",
-      draftBlocks: [],
+      draftBlocks,
       publishedBlocks: [],
       meta: { seoTitle: "", seoDescription: "", ogImage: "" },
     });
@@ -236,6 +248,58 @@ export async function addContentBlock(slug: string, type: ContentBlockType) {
     order: nextOrder,
     payload,
   });
+  page.updatedBy = user.id;
+  page.markModified("draftBlocks");
+  await page.save();
+
+  revalidatePath("/admin/content");
+  return { success: true };
+}
+
+export async function saveContentPageDraftBlocks(
+  slug: string,
+  blocks: Array<{
+    blockId: string;
+    type: ContentBlockType;
+    order: number;
+    payload: unknown;
+  }>
+) {
+  const user = await requireAdmin();
+  await connectDB();
+
+  const page = await ContentPage.findOne({ slug });
+  if (!page) throw new Error("Content page not found");
+
+  page.draftBlocks = normalizeBlocksOrder(
+    blocks.map((block, index) => ({
+      blockId: block.blockId,
+      type: block.type,
+      order: index,
+      payload: normalizePayload(block.type, block.payload),
+    }))
+  );
+  page.updatedBy = user.id;
+  page.markModified("draftBlocks");
+  await page.save();
+
+  revalidatePath("/admin/content");
+  return { success: true };
+}
+
+export async function restoreContentPageFromTemplate(slug: string) {
+  const user = await requireAdmin();
+  await connectDB();
+
+  const page = await ContentPage.findOne({ slug });
+  if (!page) throw new Error("Content page not found");
+  if (!page.templateId) throw new Error("No template assigned to this page");
+
+  const { getTemplateById, buildBlocksFromTemplate } = await import("@/features/templates/registry");
+  const template = getTemplateById(page.templateId);
+  if (!template) throw new Error("Template not found");
+
+  page.draftBlocks = buildBlocksFromTemplate(template);
   page.updatedBy = user.id;
   page.markModified("draftBlocks");
   await page.save();

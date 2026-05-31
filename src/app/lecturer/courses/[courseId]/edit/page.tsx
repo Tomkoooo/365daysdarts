@@ -21,7 +21,7 @@ import { MediaManager } from "@/components/lecturer/MediaManager"
 import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import CoursePlayerClient from "@/components/course/CoursePlayerClient"
 import { toast } from "sonner"
-import { useRef } from "react"
+import { useScheduledDelete } from "@/hooks/use-scheduled-delete"
 
 export default function CourseEditorPage() {
   const params = useParams()
@@ -50,12 +50,10 @@ export default function CourseEditorPage() {
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
 
+  const { hiddenIds, scheduleDelete } = useScheduledDelete()
+
   // Quick inputs state
   const [newModuleTitle, setNewModuleTitle] = useState("")
-
-  // Deletion state for undo
-  const [hiddenIds, setHiddenIds] = useState<string[]>([])
-  const deletionTimeouts = useRef<Record<string, any>>({})
 
   useEffect(() => {
     loadCourse()
@@ -70,6 +68,15 @@ export default function CourseEditorPage() {
               description: data.description || "",
               price: data.price || 0,
               thumbnail: data.thumbnail || "",
+            })
+            setCollapsedModules((prev) => {
+              const next = { ...prev }
+              for (const m of data.modules || []) {
+                if (!(m._id in next)) {
+                  next[m._id] = true
+                }
+              }
+              return next
             })
           }
       } catch (e) {
@@ -104,7 +111,10 @@ export default function CourseEditorPage() {
   }
 
   function toggleModuleCollapse(moduleId: string) {
-    setCollapsedModules((prev) => ({ ...prev, [moduleId]: !prev[moduleId] }))
+    setCollapsedModules((prev) => ({
+      ...prev,
+      [moduleId]: !(prev[moduleId] ?? true),
+    }))
   }
 
   function matchesSearch(text: string) {
@@ -184,16 +194,21 @@ export default function CourseEditorPage() {
   }
 
   async function handleDeletePage(e: React.MouseEvent, page: any) {
-      e.stopPropagation(); // Prevent opening editor
-      
-      const isBlank = (!page.content || page.content === '<p>Új oldal</p>' || page.content === '') && !page.mediaUrl;
-      
-      if (!isBlank) {
-          if (!confirm("Ez az oldal tartalmaz adatot. Biztosan törölni szeretné?")) return;
-      }
-      
-      await deletePage(page._id);
-      loadCourse();
+      e.stopPropagation();
+
+      const isBlank =
+        (!page.content || page.content === "<p>Új oldal</p>" || page.content === "") &&
+        !page.mediaUrl;
+      const contentWarning = isBlank ? "" : " Ez az oldal tartalmaz adatot.";
+
+      scheduleDelete(page._id, {
+        confirmMessage: `Biztosan törölni szeretné a „${page.title}” oldalt?${contentWarning} A törlés 10 másodpercig visszavonható.`,
+        toastTitle: `"${page.title}" törölve`,
+        onExecute: async () => {
+          await deletePage(page._id);
+        },
+        onAfterExecute: () => loadCourse(),
+      });
   }
 
   async function handleReorderPage(e: React.MouseEvent, pageId: string, direction: 'up' | 'down') {
@@ -202,47 +217,20 @@ export default function CourseEditorPage() {
       loadCourse();
   }
 
-  function scheduleDeletion(id: string, type: 'module' | 'chapter', title: string) {
-      const confirmMsg = type === 'module' ? `Biztosan törölni szeretné a "${title}" modult?` : `Biztosan törölni szeretné a "${title}" fejezetet?`;
-      if (!confirm(confirmMsg)) return;
-
-      // Optimistic UI
-      setHiddenIds(prev => [...prev, id]);
-
-      // Toast with undo
-      const toastId = toast.info(`${title} törölve`, {
-          description: "Visszaállítás 10 másodpercig lehetséges.",
-          duration: 10000,
-          action: {
-              label: "Mégse",
-              onClick: () => {
-                  if (deletionTimeouts.current[id]) {
-                      clearTimeout(deletionTimeouts.current[id]);
-                      delete deletionTimeouts.current[id];
-                  }
-                  setHiddenIds(prev => prev.filter(hid => hid !== id));
-                  toast.success("Művelet visszavonva");
-              }
+  function scheduleDeletion(id: string, type: "module" | "chapter", title: string) {
+      const typeLabel = type === "module" ? "modult" : "fejezetet";
+      scheduleDelete(id, {
+        confirmMessage: `Biztosan törölni szeretné a „${title}” ${typeLabel}? A törlés 10 másodpercig visszavonható.`,
+        toastTitle: `${title} törölve`,
+        onExecute: async () => {
+          if (type === "module") {
+            await deleteModule(id);
+          } else {
+            await deleteChapter(id);
           }
+        },
+        onAfterExecute: () => loadCourse(),
       });
-
-      // Schedule API call
-      deletionTimeouts.current[id] = setTimeout(async () => {
-          try {
-              if (type === 'module') {
-                  await deleteModule(id);
-              } else {
-                  await deleteChapter(id);
-              }
-              setHiddenIds(prev => prev.filter(hid => hid !== id));
-              delete deletionTimeouts.current[id];
-              loadCourse();
-          } catch (e) {
-              console.error(e);
-              toast.error("Hiba történt a törlés során");
-              setHiddenIds(prev => prev.filter(hid => hid !== id));
-          }
-      }, 10000);
   }
 
   if (loading) return <div>Kurzus betöltése...</div>
@@ -333,7 +321,7 @@ export default function CourseEditorPage() {
                                     c.pages?.some((p: any) => matchesSearch(p.title))
                                 );
                               if (!moduleMatches) return null;
-                              const isCollapsed = collapsedModules[module._id];
+                              const isCollapsed = collapsedModules[module._id] ?? true;
 
                               return (
                                 <div key={module._id} className="border rounded-lg bg-card shadow-sm overflow-hidden">
@@ -413,7 +401,7 @@ export default function CourseEditorPage() {
                                                  </div>
 
                                                  <div className="space-y-1">
-                                                     {chapter.pages?.map((page: any) => (
+                                                     {chapter.pages?.filter((p: any) => !hiddenIds.includes(p._id)).map((page: any) => (
                                                          <div 
                                                             key={page._id} 
                                                             className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer group transition-colors"

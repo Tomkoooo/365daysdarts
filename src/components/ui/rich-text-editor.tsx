@@ -7,13 +7,16 @@ interface RichTextEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  variant?: "dark" | "light";
+  minHeight?: number;
 }
 
 export interface RichTextEditorRef {
     insertContent: (html: string) => void;
 }
 
-export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(({ value, onChange, placeholder }, ref) => {
+export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
+  ({ value, onChange, placeholder, variant = "dark", minHeight = 360 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -70,8 +73,9 @@ export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>
             });
 
             quillRef.current = quillInstance;
-            quillInstance.root.style.color = "#ffffff";
-            quillInstance.root.style.minHeight = "360px";
+            quillInstance.root.style.color =
+              variant === "light" ? "inherit" : "#ffffff";
+            quillInstance.root.style.minHeight = `${minHeight}px`;
             quillInstance.root.style.backgroundColor = "transparent";
             
             // Set initial value
@@ -152,7 +156,11 @@ export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>
           </span>
       </div>
       
-      <div ref={editorRef} className="h-[420px] mb-12 text-white" />
+      <div
+        ref={editorRef}
+        className={variant === "light" ? "mb-4 text-foreground" : "h-[420px] mb-12 text-white"}
+        style={variant === "light" ? { minHeight: `${minHeight}px` } : undefined}
+      />
     </div>
   );
 });

@@ -12,12 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, Trash2, Users, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useScheduledDelete } from "@/hooks/use-scheduled-delete";
 
 export default function OptionSelectorsListPage() {
   const params = useParams();
   const courseId = params.courseId as string;
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { hiddenIds, scheduleDelete } = useScheduledDelete();
 
   async function load() {
     try {
@@ -34,16 +36,21 @@ export default function OptionSelectorsListPage() {
     load();
   }, [courseId]);
 
-  async function handleArchive(id: string) {
-    if (!confirm("Archiválod ezt az opcióválasztót?")) return;
-    const result = await archiveOptionSelector(id);
-    if (result.success) {
-      toast.success("Archiválva");
-      load();
-    } else {
-      toast.error(result.error || "Hiba");
-    }
+  function handleArchive(item: { _id: string; title: string }) {
+    scheduleDelete(item._id, {
+      confirmMessage: `Biztosan archiválja a „${item.title}” opcióválasztót? A művelet 10 másodpercig visszavonható.`,
+      toastTitle: `${item.title} archiválva`,
+      onExecute: async () => {
+        const result = await archiveOptionSelector(item._id);
+        if (!result.success) {
+          return { success: false, error: result.error || "Hiba" };
+        }
+      },
+      onAfterExecute: () => load(),
+    });
   }
+
+  const visibleItems = items.filter((item) => !hiddenIds.includes(item._id));
 
   if (loading) {
     return (
@@ -76,7 +83,7 @@ export default function OptionSelectorsListPage() {
         </Button>
       </div>
 
-      {items.length === 0 ? (
+      {visibleItems.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             Még nincs opcióválasztó. Hozz létre egyet!
@@ -84,7 +91,7 @@ export default function OptionSelectorsListPage() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <Card key={item._id}>
               <CardHeader className="pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -111,7 +118,7 @@ export default function OptionSelectorsListPage() {
                   variant="ghost"
                   size="sm"
                   className="text-destructive"
-                  onClick={() => handleArchive(item._id)}
+                  onClick={() => handleArchive(item)}
                 >
                   <Trash2 className="h-4 w-4 mr-1" /> Archiválás
                 </Button>

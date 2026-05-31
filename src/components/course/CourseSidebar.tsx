@@ -78,7 +78,7 @@ export function CourseSidebar({
     <div className="w-full h-full flex flex-col bg-background min-h-0">
        <div className="p-4 border-b font-semibold truncate" title={courseTitle}>{courseTitle}</div>
        <ScrollArea className="flex-1 min-h-0">
-         <Accordion type="multiple" defaultValue={modules.map(m => m._id)} className="w-full">
+         <Accordion type="multiple" defaultValue={[]} className="w-full">
            {modules.map((module: any) => (
              <AccordionItem value={module._id} key={module._id}>
                 <AccordionTrigger className="px-4 py-3 hover:bg-muted/50 text-sm font-bold bg-muted/20">

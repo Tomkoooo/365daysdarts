@@ -18,17 +18,17 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 const NAV_ITEMS = [
-  { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/courses", label: "Courses", icon: BookOpen },
-  { href: "/admin/content", label: "Content", icon: FileText },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin", label: "Áttekintés", icon: LayoutDashboard, exact: true },
+  { href: "/admin/users", label: "Felhasználók", icon: Users },
+  { href: "/admin/courses", label: "Kurzusok", icon: BookOpen },
+  { href: "/admin/content", label: "Tartalom", icon: FileText },
+  { href: "/admin/settings", label: "Beállítások", icon: Settings },
 ];
 
 const PREVIEW_ITEMS = [
-  { href: "/admin/preview/student", label: "Student view" },
-  { href: "/admin/preview/lecturer", label: "Lecturer view" },
-  { href: "/admin/preview/business", label: "Business view" },
+  { href: "/admin/preview/student", label: "Tanuló nézet" },
+  { href: "/admin/preview/lecturer", label: "Oktató nézet" },
+  { href: "/admin/preview/business", label: "Üzleti nézet" },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
@@ -60,7 +60,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
       })}
 
       <div className="mt-6 mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Preview as role
+        Előnézet szerepkörrel
       </div>
       {PREVIEW_ITEMS.map((item) => (
         <Link
@@ -100,7 +100,7 @@ export function AdminShell({
           <Link href="/admin" className="font-semibold text-lg">
             Admin
           </Link>
-          <p className="text-xs text-muted-foreground mt-1">Platform management</p>
+          <p className="text-xs text-muted-foreground mt-1">Platform kezelés</p>
         </div>
         <div className="flex-1 p-3 overflow-y-auto">
           <NavLinks />
@@ -109,7 +109,7 @@ export function AdminShell({
           <Button variant="ghost" size="sm" className="w-full justify-start" asChild>
             <Link href="/dashboard">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to dashboard
+              Vissza a vezérlőpulthoz
             </Link>
           </Button>
         </div>

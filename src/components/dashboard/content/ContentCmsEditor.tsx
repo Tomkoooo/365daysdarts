@@ -10,6 +10,7 @@ import {
   publishContentPage,
   reorderContentBlocks,
   restoreMarketingPagesDefaults,
+  restoreContentPageFromTemplate,
   runContentPageSmokeTests,
   unpublishContentPage,
   updateContentBlock,
@@ -26,10 +27,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MediaManager } from "@/components/lecturer/MediaManager";
-import { ArrowDown, ArrowUp, Eye, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, LayoutTemplate, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { CONTENT_BLOCK_TYPES, BLOCK_TYPE_LABELS, ContentBlockType } from "@/lib/content/types";
 import { MarketingBlockRenderer } from "@/components/content/MarketingBlockRenderer";
 import { SortableBlockList } from "@/components/dashboard/content/SortableBlockList";
+import { VisualPageEditor } from "@/features/cms-editor/VisualPageEditor";
+import { SettingsImageField } from "@/components/admin/SettingsImageField";
+import { listTemplates } from "@/features/templates/registry";
 import { toast } from "sonner";
 
 type ContentPageSummary = {
@@ -51,6 +55,7 @@ type ContentPageDetail = {
   slug: string;
   title: string;
   status: "draft" | "published";
+  templateId?: string;
   draftBlocks: ContentBlock[];
   publishedBlocks: ContentBlock[];
   meta?: {
@@ -59,6 +64,8 @@ type ContentPageDetail = {
     ogImage?: string;
   };
 };
+
+const PAGE_TEMPLATES = listTemplates();
 
 interface ContentCmsEditorProps {
   initialPages: ContentPageSummary[];
@@ -71,8 +78,9 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
   const [isPending, startTransition] = useTransition();
   const [newSlug, setNewSlug] = useState("");
   const [newTitle, setNewTitle] = useState("");
+  const [newTemplateId, setNewTemplateId] = useState(PAGE_TEMPLATES[0]?.id || "");
   const [newBlockType, setNewBlockType] = useState<ContentBlockType>("hero");
-  const [viewMode, setViewMode] = useState<"editor" | "preview">("editor");
+  const [viewMode, setViewMode] = useState<"editor" | "visual" | "preview">("visual");
   const [editablePageTitle, setEditablePageTitle] = useState("");
   const [pageMeta, setPageMeta] = useState({
     seoTitle: "",
@@ -187,7 +195,7 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Új tartalom oldal</CardTitle>
         </CardHeader>
-        <CardContent className="grid md:grid-cols-3 gap-3">
+        <CardContent className="grid md:grid-cols-4 gap-3">
           <div className="space-y-1">
             <Label htmlFor="cms-slug">Slug</Label>
             <Input
@@ -206,19 +214,45 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
               placeholder="Oldal neve"
             />
           </div>
+          <div className="space-y-1">
+            <Label htmlFor="cms-template">Sablon</Label>
+            <Select value={newTemplateId} onValueChange={setNewTemplateId}>
+              <SelectTrigger id="cms-template">
+                <SelectValue placeholder="Sablon választása" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_TEMPLATES.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {newTemplateId ? (
+              <p className="text-xs text-muted-foreground">
+                {PAGE_TEMPLATES.find((t) => t.id === newTemplateId)?.description}
+              </p>
+            ) : null}
+          </div>
           <div className="flex items-end">
             <Button
               className="w-full"
               onClick={() =>
                 startTransition(async () => {
                   const result = await runAction(
-                    () => upsertContentPage({ slug: newSlug, title: newTitle }),
+                    () =>
+                      upsertContentPage({
+                        slug: newSlug,
+                        title: newTitle,
+                        templateId: newTemplateId || undefined,
+                      }),
                     { success: "Tartalom oldal létrehozva." }
                   );
                   if (!result) return;
                   setNewSlug("");
                   setNewTitle("");
                   await runAction(() => refreshPages());
+                  setSelectedSlug(newSlug.trim().toLowerCase());
                 })
               }
               disabled={!newSlug.trim() || !newTitle.trim() || isPending}
@@ -324,13 +358,13 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label>OG kép URL</Label>
-                      <Input
+                      <SettingsImageField
+                        label="OG kép"
                         value={pageMeta.ogImage}
-                        onChange={(e) =>
-                          setPageMeta({ ...pageMeta, ogImage: e.target.value })
-                        }
-                        placeholder="https://..."
+                        onChange={(ogImage) => setPageMeta({ ...pageMeta, ogImage })}
+                        aspect={16 / 9}
+                        recommendedSize={{ width: 1200, height: 630 }}
+                        usageLabel="Oldal OG kép"
                       />
                     </div>
                     <div className="space-y-1 sm:col-span-2">
@@ -367,11 +401,19 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
                     <div className="flex gap-1 bg-muted rounded-md p-0.5">
                       <Button
                         size="sm"
+                        variant={viewMode === "visual" ? "default" : "ghost"}
+                        className="h-8 gap-1.5"
+                        onClick={() => setViewMode("visual")}
+                      >
+                        <LayoutTemplate className="h-3.5 w-3.5" /> Vizuális
+                      </Button>
+                      <Button
+                        size="sm"
                         variant={viewMode === "editor" ? "default" : "ghost"}
                         className="h-8 gap-1.5"
                         onClick={() => setViewMode("editor")}
                       >
-                        <Pencil className="h-3.5 w-3.5" /> Szerkesztő
+                        <Pencil className="h-3.5 w-3.5" /> Űrlap
                       </Button>
                       <Button
                         size="sm"
@@ -440,6 +482,28 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
                       >
                         Publikálás
                       </Button>
+                      {page.templateId ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const confirmed = window.confirm(
+                              "Biztosan visszaállítod az oldalt a sablon alapértelmezett tartalmára? Ez felülírja a piszkozat blokkokat."
+                            );
+                            if (!confirmed) return;
+                            startTransition(async () => {
+                              const result = await runAction(
+                                () => restoreContentPageFromTemplate(page.slug),
+                                { success: "Sablon alapértelmezések visszaállítva." }
+                              );
+                              if (!result) return;
+                              await runAction(() => loadPage(page.slug));
+                            });
+                          }}
+                        >
+                          Sablon visszaállítása
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </CardContent>
@@ -478,6 +542,15 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
                     <Plus className="h-4 w-4 mr-2" /> Blokk hozzáadása
                   </Button>
                 </div>
+              )}
+
+              {/* Visual editor view */}
+              {viewMode === "visual" && page && (
+                <VisualPageEditor
+                  slug={page.slug}
+                  initialBlocks={sortedDraftBlocks}
+                  onBlocksSaved={() => loadPage(page.slug)}
+                />
               )}
 
               {/* Editor view */}

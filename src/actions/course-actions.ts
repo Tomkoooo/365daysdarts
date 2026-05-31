@@ -9,6 +9,7 @@ import { authOptions } from "@/lib/auth";
 import { getAuthSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import User from "@/models/User";
+import { notifyStudentsAboutNewCourse } from "@/lib/email-notifications";
 
 export async function getCourseWithContent(courseId: string) {
   const session = await getAuthSession();
@@ -109,8 +110,21 @@ export async function createChapter(moduleId: string, title: string) {
 
 export async function updateCourse(courseId: string, data: { title?: string, description?: string, price?: number, isPublished?: boolean, thumbnail?: string }) {
     await connectDB();
+    const existing = await Course.findById(courseId).lean();
+    const wasPublished = !!(existing as any)?.isPublished;
+
     const updatedCourse = await Course.findByIdAndUpdate(courseId, data, { new: true });
-    return JSON.parse(JSON.stringify(updatedCourse));
+    const course = updatedCourse ? JSON.parse(JSON.stringify(updatedCourse)) : null;
+
+    if (course && !wasPublished && data.isPublished === true) {
+      notifyStudentsAboutNewCourse({
+        _id: courseId,
+        title: course.title,
+        description: course.description,
+      }).catch(console.error);
+    }
+
+    return course;
 }
 
 export async function updateModule(moduleId: string, data: { title?: string }) {

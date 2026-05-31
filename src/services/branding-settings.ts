@@ -6,6 +6,7 @@ export type BrandingSettings = {
   logoNav: string;
   logoFooter: string;
   logoHero: string;
+  enableBilling: boolean;
 };
 
 const DEFAULTS: BrandingSettings = {
@@ -13,6 +14,7 @@ const DEFAULTS: BrandingSettings = {
   logoNav: "/logo.svg",
   logoFooter: "/logo.svg",
   logoHero: "/logo.svg",
+  enableBilling: false,
 };
 
 export class BrandingSettingsService {

@@ -7,6 +7,7 @@ const BrandingSettingSchema = new Schema(
     logoNav: { type: String, default: "/logo.svg" },
     logoFooter: { type: String, default: "/logo.svg" },
     logoHero: { type: String, default: "/logo.svg" },
+    enableBilling: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

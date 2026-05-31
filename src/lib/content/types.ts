@@ -33,6 +33,7 @@ export const BLOCK_TYPE_LABELS: Record<ContentBlockType, string> = {
 const ctaLinkSchema = z.object({
   label: z.string().trim().min(1, "Button label is required"),
   href: z.string().trim().min(1, "Button URL is required"),
+  icon: z.string().trim().max(80).default(""),
 });
 
 const heroSchema = z.object({
@@ -79,6 +80,7 @@ const ctaSchema = z.object({
 const featureCardSchema = z.object({
   title: z.string().trim().min(1, "Card title is required"),
   description: z.string().trim().min(1, "Card description is required"),
+  icon: z.string().trim().max(80).default(""),
   buttonLabel: z.string().trim().max(80).default(""),
   buttonHref: z.string().trim().max(300).default(""),
 });
@@ -206,7 +208,7 @@ export function getDefaultPayload(type: ContentBlockType) {
       return {
         title: "Feature section",
         description: "",
-        cards: [{ title: "Feature", description: "Feature description" }],
+        cards: [{ title: "Feature", description: "Feature description", icon: "star" }],
       };
     case "buttonRow":
       return {
