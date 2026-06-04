@@ -26,10 +26,7 @@ export default async function CourseLearnPage({ params }: { params: Promise<{ co
     redirect("/dashboard");
   }
 
-  // 3. If course is completed, don't allow re-entry
-  if (progress?.courseCompleted) {
-      redirect("/dashboard");
-  }
+  // 3. If course is completed, we still allow re-entry so they can access their dolgozats, choosings, or review materials.
 
   return (
     <CoursePlayerClient 

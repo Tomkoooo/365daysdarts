@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { getStudentCourses } from "@/actions/course-actions"
-import { Loader2, BookOpen, Trophy, Clock, AlertTriangle } from "lucide-react"
+import { Loader2, BookOpen, Trophy, Clock, AlertTriangle, ClipboardList } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 export default function StudentDashboard() {
@@ -176,9 +176,25 @@ export default function StudentDashboard() {
                   )}
 
                   {course.progress?.courseCompleted && (
-                    <div className="flex items-center justify-center gap-2 p-3 bg-green-50 dark:bg-green-950 rounded-md border border-green-200 dark:border-green-800">
-                      <Trophy className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      <span className="font-semibold text-green-700 dark:text-green-300">Teljesítve</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-center gap-2 p-3 bg-green-50 dark:bg-green-950 rounded-md border border-green-200 dark:border-green-800">
+                        <Trophy className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        <span className="font-semibold text-green-700 dark:text-green-300">Teljesítve</span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Button asChild className="w-full">
+                          <Link href={`/courses/${course._id}/learn`}>
+                            <BookOpen className="mr-2 h-4 w-4" />
+                            Kurzus megnyitása
+                          </Link>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild className="w-full">
+                          <Link href={`/courses/${course._id}/dolgozatok`}>
+                            <ClipboardList className="mr-2 h-4 w-4 text-cta" />
+                            Dolgozatok / jelentkezések
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CardContent>
