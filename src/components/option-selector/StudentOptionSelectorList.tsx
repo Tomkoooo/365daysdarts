@@ -52,6 +52,9 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
           : [...current, optionId];
         return { ...prev, [selectorId]: next };
       }
+      if (current.includes(optionId)) {
+        return { ...prev, [selectorId]: [] };
+      }
       return { ...prev, [selectorId]: [optionId] };
     });
   }
@@ -148,12 +151,26 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                   const disabled = !canChange || (!isSelected && opt.isFull);
 
                   return (
-                    <label
+                    <div
                       key={opt._id}
+                      role={item.allowMultiple ? "checkbox" : "radio"}
+                      aria-checked={isSelected}
+                      tabIndex={disabled ? -1 : 0}
+                      onClick={() => {
+                        if (disabled || !canChange) return;
+                        toggleSelection(item._id, opt._id, item.allowMultiple);
+                      }}
+                      onKeyDown={(e) => {
+                        if (disabled || !canChange) return;
+                        if (e.key === " " || e.key === "Enter") {
+                          e.preventDefault();
+                          toggleSelection(item._id, opt._id, item.allowMultiple);
+                        }
+                      }}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-md border transition-colors",
+                        "flex items-center gap-3 p-3 rounded-md border transition-colors min-h-10",
                         isSelected && "border-primary bg-primary/5",
-                        canChange ? "cursor-pointer" : "cursor-default",
+                        canChange && !disabled ? "cursor-pointer" : "cursor-default",
                         disabled && "opacity-50 cursor-not-allowed"
                       )}
                     >
@@ -161,12 +178,10 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                         type={item.allowMultiple ? "checkbox" : "radio"}
                         name={`selector-${item._id}`}
                         checked={isSelected}
-                        disabled={disabled}
-                        onChange={() =>
-                          canChange &&
-                          toggleSelection(item._id, opt._id, item.allowMultiple)
-                        }
-                        className="shrink-0"
+                        readOnly
+                        tabIndex={-1}
+                        aria-hidden
+                        className="shrink-0 pointer-events-none"
                       />
                       <span className="flex-1 text-sm">{opt.text}</span>
                       {opt.limit > 0 && (
@@ -175,7 +190,7 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                           {opt.isFull && !isSelected ? " (betelt)" : ""}
                         </span>
                       )}
-                    </label>
+                    </div>
                   );
                 })}
               </div>
