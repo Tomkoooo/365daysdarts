@@ -26,6 +26,7 @@ const OptionSelectorSchema = new Schema(
     allowMultiple: { type: Boolean, default: false },
     options: { type: [OptionItemSchema], default: [] },
     responses: { type: [ResponseSchema], default: [] },
+    deadlineAt: { type: Date },
     isPublished: { type: Boolean, default: false },
     isArchived: { type: Boolean, default: false },
   },

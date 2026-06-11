@@ -6,9 +6,11 @@ import OptionSelector from "@/models/OptionSelector";
 import User from "@/models/User";
 import { getAuthSession } from "@/lib/session";
 import {
+  canChangeResponse,
   countResponsesForOption,
   getStudentSelectedOptionIds,
   hasStudentResponded,
+  isPastDeadline,
 } from "@/lib/option-selector-utils";
 import mongoose from "mongoose";
 import * as XLSX from "xlsx";
@@ -24,6 +26,7 @@ export type OptionSelectorInput = {
   description?: string;
   allowMultiple?: boolean;
   options: OptionSelectorOptionInput[];
+  deadlineAt?: string | null;
   isPublished?: boolean;
 };
 
@@ -73,6 +76,7 @@ type NormalizedSelector = {
   allowMultiple: boolean;
   options: { _id: string; text: string; limit: number }[];
   responses: NormalizedResponse[];
+  deadlineAt?: string;
   isPublished: boolean;
   isArchived: boolean;
 };
@@ -187,6 +191,8 @@ export async function getOptionSelectorById(id: string) {
     options: optionsWithAvailability,
     myOptionIds,
     hasResponded: myOptionIds.length > 0,
+    canChange: canChangeResponse(normalized),
+    isPastDeadline: isPastDeadline(normalized.deadlineAt),
   };
 }
 
@@ -213,6 +219,7 @@ export async function createOptionSelector(courseId: string, input: OptionSelect
       text: o.text.trim(),
       limit: o.limit ?? 0,
     })),
+    deadlineAt: input.deadlineAt ? new Date(input.deadlineAt) : undefined,
     isPublished: input.isPublished ?? false,
   });
 
@@ -257,6 +264,7 @@ export async function updateOptionSelector(id: string, input: OptionSelectorInpu
   existing.description = input.description?.trim() || undefined;
   existing.allowMultiple = input.allowMultiple ?? false;
   existing.options = newOptions as any;
+  existing.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : undefined;
   existing.isPublished = input.isPublished ?? existing.isPublished;
 
   const keptOptionIds = new Set(
@@ -316,12 +324,15 @@ export async function listPublishedOptionSelectorsForStudent(courseId: string) {
       const isFull = limit > 0 && count >= limit;
       return { ...o, count, isFull };
     });
+    const canChange = canChangeResponse(normalized);
     return {
       ...normalized,
       options: optionsWithAvailability,
       myOptionIds,
       hasResponded: myOptionIds.length > 0,
       needsResponse: myOptionIds.length === 0,
+      canChange,
+      isPastDeadline: isPastDeadline(normalized.deadlineAt),
     };
   });
 }
@@ -350,6 +361,10 @@ export async function submitStudentResponse(
 
   if (!selector.allowMultiple && optionIds.length > 1) {
     return { success: false, error: "Csak egy opció választható" };
+  }
+
+  if (!canChangeResponse(selector)) {
+    return { success: false, error: "A határidő lejárt, módosítás nem lehetséges" };
   }
 
   const validOptionIds = new Set(
@@ -390,6 +405,85 @@ export async function submitStudentResponse(
   selector.responses = [...otherResponses, ...newResponses] as any;
   await selector.save();
 
+  return { success: true };
+}
+
+export async function updateOptionSelectorResponse(
+  optionSelectorId: string,
+  responseId: string,
+  newOptionId: string
+) {
+  const session = await getAuthSession();
+  if (!session?.user?.id) return { success: false, error: "Bejelentkezés szükséges" };
+
+  await connectDB();
+  const selector = await OptionSelector.findById(optionSelectorId);
+  if (!selector || selector.isArchived) {
+    return { success: false, error: "Opcióválasztó nem található" };
+  }
+
+  const courseId = selector.courseId.toString();
+  if (!(await ensureLecturerCanAccessCourse(session, courseId))) {
+    return { success: false, error: "Nincs jogosultság" };
+  }
+
+  const response = selector.responses.id(responseId);
+  if (!response) return { success: false, error: "Jelentkezés nem található" };
+
+  const opt = selector.options.id(newOptionId);
+  if (!opt) return { success: false, error: "Érvénytelen opció" };
+
+  if (response.optionId.toString() === newOptionId) {
+    return { success: true };
+  }
+
+  const otherResponses = selector.responses.filter(
+    (r: { _id: { toString(): string } }) => r._id.toString() !== responseId
+  );
+  const limit = opt.limit ?? 0;
+  if (limit > 0) {
+    const currentCount = countResponsesForOption(otherResponses as any, newOptionId);
+    if (currentCount >= limit) {
+      return {
+        success: false,
+        error: `"${opt.text}" már betelt (${limit} fő)`,
+      };
+    }
+  }
+
+  response.optionId = new mongoose.Types.ObjectId(newOptionId);
+  await selector.save();
+  return { success: true };
+}
+
+export async function deleteOptionSelectorResponse(
+  optionSelectorId: string,
+  responseId: string
+) {
+  const session = await getAuthSession();
+  if (!session?.user?.id) return { success: false, error: "Bejelentkezés szükséges" };
+
+  await connectDB();
+  const selector = await OptionSelector.findById(optionSelectorId);
+  if (!selector || selector.isArchived) {
+    return { success: false, error: "Opcióválasztó nem található" };
+  }
+
+  const courseId = selector.courseId.toString();
+  if (!(await ensureLecturerCanAccessCourse(session, courseId))) {
+    return { success: false, error: "Nincs jogosultság" };
+  }
+
+  const before = selector.responses.length;
+  selector.responses = selector.responses.filter(
+    (r: { _id: { toString(): string } }) => r._id.toString() !== responseId
+  ) as any;
+
+  if (selector.responses.length === before) {
+    return { success: false, error: "Jelentkezés nem található" };
+  }
+
+  await selector.save();
   return { success: true };
 }
 

@@ -20,3 +20,12 @@ export function hasStudentResponded(
 ): boolean {
   return responses.some((r) => r.studentId.toString() === studentId);
 }
+
+export function isPastDeadline(deadlineAt?: Date | string | null): boolean {
+  if (!deadlineAt) return false;
+  return new Date() > new Date(deadlineAt);
+}
+
+export function canChangeResponse(selector: { deadlineAt?: Date | string | null }): boolean {
+  return !isPastDeadline(selector.deadlineAt);
+}

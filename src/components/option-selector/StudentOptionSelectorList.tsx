@@ -88,6 +88,8 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
       {items.map((item) => {
         const selected = selections[item._id] || [];
         const needsResponse = !item.hasResponded;
+        const canChange = item.canChange !== false;
+        const isPastDeadline = item.isPastDeadline === true;
 
         return (
           <Card
@@ -110,11 +112,20 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                     {item.description && (
                       <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
                     )}
+                    {item.deadlineAt && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Határidő: {new Date(item.deadlineAt).toLocaleString("hu-HU")}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {needsResponse ? (
                   <Badge variant="outline" className="border-amber-500 text-amber-600 shrink-0">
                     Új jelentkezés szükséges
+                  </Badge>
+                ) : isPastDeadline ? (
+                  <Badge variant="secondary" className="shrink-0">
+                    <Check className="h-3 w-3 mr-1" /> Lezárva
                   </Badge>
                 ) : (
                   <Badge variant="secondary" className="shrink-0">
@@ -127,14 +138,16 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
               <div className="grid gap-2">
                 {item.options.map((opt: any) => {
                   const isSelected = selected.includes(opt._id);
-                  const disabled = opt.isFull && !isSelected;
+                  const disabled =
+                    !canChange || (opt.isFull && !isSelected);
 
                   return (
                     <label
                       key={opt._id}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors",
+                        "flex items-center gap-3 p-3 rounded-md border transition-colors",
                         isSelected && "border-primary bg-primary/5",
+                        canChange ? "cursor-pointer" : "cursor-default",
                         disabled && "opacity-50 cursor-not-allowed"
                       )}
                     >
@@ -144,6 +157,7 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                         checked={isSelected}
                         disabled={disabled}
                         onChange={() =>
+                          canChange &&
                           toggleSelection(item._id, opt._id, item.allowMultiple)
                         }
                         className="shrink-0"
@@ -159,16 +173,28 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                   );
                 })}
               </div>
-              <Button
-                size="sm"
-                disabled={submittingId === item._id || selected.length === 0}
-                onClick={() => handleSubmit(item._id)}
-              >
-                {submittingId === item._id && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                {item.hasResponded ? "Módosítás mentése" : "Jelentkezés"}
-              </Button>
+              {isPastDeadline && !item.hasResponded && (
+                <p className="text-sm text-muted-foreground">
+                  A határidő lejárt, jelentkezés már nem lehetséges.
+                </p>
+              )}
+              {canChange && (
+                <Button
+                  size="sm"
+                  disabled={submittingId === item._id || selected.length === 0}
+                  onClick={() => handleSubmit(item._id)}
+                >
+                  {submittingId === item._id && (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  )}
+                  {item.hasResponded ? "Módosítás mentése" : "Jelentkezés"}
+                </Button>
+              )}
+              {item.hasResponded && canChange && (
+                <p className="text-xs text-muted-foreground">
+                  A határidőig módosíthatod a választásodat.
+                </p>
+              )}
             </CardContent>
           </Card>
         );

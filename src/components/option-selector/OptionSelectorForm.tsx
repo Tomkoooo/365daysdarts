@@ -19,6 +19,12 @@ export function OptionSelectorForm({ initial, onSubmit, onCancel }: OptionSelect
   const [title, setTitle] = useState(initial?.title || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [allowMultiple, setAllowMultiple] = useState(initial?.allowMultiple ?? false);
+  const [deadlineAt, setDeadlineAt] = useState(() => {
+    if (!initial?.deadlineAt) return "";
+    const d = new Date(initial.deadlineAt);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const [isPublished, setIsPublished] = useState(initial?.isPublished ?? false);
   const [options, setOptions] = useState<OptionSelectorOptionInput[]>(
     initial?.options?.length
@@ -65,6 +71,7 @@ export function OptionSelectorForm({ initial, onSubmit, onCancel }: OptionSelect
       title: title.trim(),
       description: description.trim() || undefined,
       allowMultiple,
+      deadlineAt: deadlineAt || null,
       isPublished,
       options: validOptions.map((o) => ({
         _id: o._id,
@@ -93,6 +100,19 @@ export function OptionSelectorForm({ initial, onSubmit, onCancel }: OptionSelect
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="deadline">Határidő</Label>
+        <Input
+          id="deadline"
+          type="datetime-local"
+          value={deadlineAt}
+          onChange={(e) => setDeadlineAt(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          A határidő után a diákok nem módosíthatják a választásukat.
+        </p>
       </div>
 
       <div className="flex items-center gap-2">

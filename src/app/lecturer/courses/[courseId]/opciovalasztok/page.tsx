@@ -93,6 +93,13 @@ export default function OptionSelectorsListPage() {
                     <p className="text-sm text-muted-foreground mt-1">
                       {item.options.length} opció ·{" "}
                       {item.allowMultiple ? "több választható" : "egy választható"}
+                      {item.deadlineAt && (
+                        <>
+                          {" "}
+                          · Határidő:{" "}
+                          {new Date(item.deadlineAt).toLocaleString("hu-HU")}
+                        </>
+                      )}
                     </p>
                   </div>
                   <Badge variant={item.isPublished ? "default" : "secondary"}>

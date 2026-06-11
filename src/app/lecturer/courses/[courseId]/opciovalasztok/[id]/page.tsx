@@ -7,6 +7,8 @@ import {
   getOptionSelectorById,
   updateOptionSelector,
   exportOptionSelectorResponses,
+  updateOptionSelectorResponse,
+  deleteOptionSelectorResponse,
 } from "@/actions/option-selector-actions";
 import { OptionSelectorForm } from "@/components/option-selector/OptionSelectorForm";
 import { Button } from "@/components/ui/button";
@@ -20,7 +22,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, FileSpreadsheet, Loader2, Mail, Copy } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, FileSpreadsheet, Loader2, Mail, Copy, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function OptionSelectorDetailPage() {
@@ -30,6 +39,8 @@ export default function OptionSelectorDetailPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [updatingResponseId, setUpdatingResponseId] = useState<string | null>(null);
+  const [deletingResponseId, setDeletingResponseId] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -73,6 +84,31 @@ export default function OptionSelectorDetailPage() {
     }
   }
 
+  async function handleChangeResponse(responseId: string, newOptionId: string) {
+    setUpdatingResponseId(responseId);
+    const result = await updateOptionSelectorResponse(id, responseId, newOptionId);
+    setUpdatingResponseId(null);
+    if (result.success) {
+      toast.success("Jelentkezés módosítva");
+      load();
+    } else {
+      toast.error(result.error || "Hiba történt");
+    }
+  }
+
+  async function handleDeleteResponse(responseId: string, studentName: string) {
+    if (!confirm(`Törlöd ${studentName} jelentkezését?`)) return;
+    setDeletingResponseId(responseId);
+    const result = await deleteOptionSelectorResponse(id, responseId);
+    setDeletingResponseId(null);
+    if (result.success) {
+      toast.success("Jelentkezés törölve");
+      load();
+    } else {
+      toast.error(result.error || "Hiba történt");
+    }
+  }
+
   function copyEmails(emails: string[]) {
     const unique = [...new Set(emails.filter(Boolean))];
     if (unique.length === 0) {
@@ -111,7 +147,15 @@ export default function OptionSelectorDetailPage() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">{data.title}</h1>
-            <p className="text-muted-foreground text-sm">Opcióválasztó kezelése</p>
+            <p className="text-muted-foreground text-sm">
+              Opcióválasztó kezelése
+              {data.deadlineAt && (
+                <>
+                  {" "}
+                  · Határidő: {new Date(data.deadlineAt).toLocaleString("hu-HU")}
+                </>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -181,6 +225,7 @@ export default function OptionSelectorDetailPage() {
                           <TableHead>Név</TableHead>
                           <TableHead>E-mail</TableHead>
                           <TableHead>Időpont</TableHead>
+                          <TableHead className="min-w-[180px]">Műveletek</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -192,6 +237,44 @@ export default function OptionSelectorDetailPage() {
                               {r.createdAt
                                 ? new Date(r.createdAt).toLocaleString("hu-HU")
                                 : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Select
+                                  value={r.optionId}
+                                  disabled={updatingResponseId === r._id}
+                                  onValueChange={(value) =>
+                                    handleChangeResponse(r._id, value)
+                                  }
+                                >
+                                  <SelectTrigger className="h-9 min-w-[140px] max-w-[220px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {data.options.map((opt: any) => (
+                                      <SelectItem key={opt._id} value={opt._id}>
+                                        {opt.text}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9 text-destructive shrink-0"
+                                  disabled={deletingResponseId === r._id}
+                                  onClick={() =>
+                                    handleDeleteResponse(r._id, r.studentName)
+                                  }
+                                  aria-label="Jelentkezés törlése"
+                                >
+                                  {deletingResponseId === r._id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -210,6 +293,7 @@ export default function OptionSelectorDetailPage() {
               title: data.title,
               description: data.description,
               allowMultiple: data.allowMultiple,
+              deadlineAt: data.deadlineAt,
               isPublished: data.isPublished,
               options: data.options.map((o: any) => ({
                 _id: o._id,
