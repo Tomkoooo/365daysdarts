@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import connectDB from "@/lib/db";
-import { getAuthSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/authz";
 import ContentPage from "@/models/ContentPage";
 import {
   CONTENT_BLOCK_TYPES,
@@ -15,22 +15,18 @@ import { sanitizeHtml } from "@/lib/content/sanitize";
 import { defaultHomeDraftBlocks } from "@/lib/content/default-home";
 import { runContentSmokeChecks } from "@/lib/content/smoke";
 import { MARKETING_PAGE_SEEDS } from "@/lib/content/default-pages";
+import { PageContentService } from "@/services/page-content";
 
 function serialize<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
-async function requireAdmin() {
-  const session = await getAuthSession();
-  if (session?.user?.role !== "admin") {
-    throw new Error("Unauthorized");
-  }
-  return session.user.id;
-}
-
 function normalizePayload(type: ContentBlockType, payload: unknown) {
   const parsed = validateBlockPayload(type, payload) as Record<string, unknown>;
   if (type === "richText" && typeof parsed.html === "string") {
+    return { ...parsed, html: sanitizeHtml(parsed.html) };
+  }
+  if (type === "container" && typeof parsed.html === "string") {
     return { ...parsed, html: sanitizeHtml(parsed.html) };
   }
   return parsed;
@@ -42,21 +38,13 @@ function normalizeBlocksOrder(blocks: any[]) {
     .map((block, index) => ({ ...block, order: index }));
 }
 
-export async function getPublishedContentPage(slug: string) {
-  await connectDB();
-  const page = await ContentPage.findOne({ slug }).lean();
-  if (!page || page.status !== "published") {
-    return null;
-  }
+function revalidateContentPath(slug: string) {
+  revalidatePath(PageContentService.slugToPath(slug));
+  revalidatePath("/admin/content");
+}
 
-  return serialize({
-    slug: page.slug,
-    title: page.title,
-    blocks: (page.publishedBlocks || []).sort(
-      (a: any, b: any) => a.order - b.order
-    ),
-    publishedAt: page.publishedAt,
-  });
+export async function getPublishedContentPage(slug: string) {
+  return PageContentService.getPublished(slug);
 }
 
 export async function getContentPagesAdmin() {
@@ -85,8 +73,12 @@ export async function getContentPageAdmin(slug: string) {
   });
 }
 
-export async function upsertContentPage(input: { slug: string; title: string }) {
-  const userId = await requireAdmin();
+export async function upsertContentPage(input: {
+  slug: string;
+  title: string;
+  templateId?: string;
+}) {
+  const user = await requireAdmin();
   await connectDB();
 
   const slug = input.slug.trim().toLowerCase();
@@ -98,25 +90,34 @@ export async function upsertContentPage(input: { slug: string; title: string }) 
   const existing = await ContentPage.findOne({ slug });
   if (existing) {
     existing.title = title;
-    existing.updatedBy = userId;
+    if (input.templateId) {
+      existing.templateId = input.templateId;
+    }
+    existing.updatedBy = user.id;
     await existing.save();
   } else {
+    const { getTemplateById, buildBlocksFromTemplate } = await import("@/features/templates/registry");
+    const template = input.templateId ? getTemplateById(input.templateId) : null;
+    const draftBlocks = template ? buildBlocksFromTemplate(template) : [];
+
     await ContentPage.create({
       slug,
       title,
-      updatedBy: userId,
+      templateId: input.templateId || "",
+      updatedBy: user.id,
       status: "draft",
-      draftBlocks: [],
+      draftBlocks,
       publishedBlocks: [],
+      meta: { seoTitle: "", seoDescription: "", ogImage: "" },
     });
   }
 
-  revalidatePath("/dashboard/content");
+  revalidatePath("/admin/content");
   return { success: true };
 }
 
 export async function updateContentPageTitle(slug: string, title: string) {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   const normalizedSlug = slug.trim().toLowerCase();
@@ -131,15 +132,34 @@ export async function updateContentPageTitle(slug: string, title: string) {
   }
 
   page.title = normalizedTitle;
-  page.updatedBy = userId;
+  page.updatedBy = user.id;
   await page.save();
 
-  revalidatePath("/dashboard/content");
+  revalidatePath("/admin/content");
+  return { success: true };
+}
+
+export async function updateContentPageMeta(
+  slug: string,
+  meta: { seoTitle?: string; seoDescription?: string; ogImage?: string }
+) {
+  const user = await requireAdmin();
+  await connectDB();
+
+  const page = await ContentPage.findOne({ slug: slug.trim().toLowerCase() });
+  if (!page) throw new Error("Content page not found");
+
+  page.meta = { ...(page.meta || {}), ...meta };
+  page.updatedBy = user.id;
+  page.markModified("meta");
+  await page.save();
+
+  revalidateContentPath(slug);
   return { success: true };
 }
 
 export async function ensureHomePageSeeded() {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   const existing = await ContentPage.findOne({ slug: "home" });
@@ -151,15 +171,15 @@ export async function ensureHomePageSeeded() {
     status: "draft",
     draftBlocks: defaultHomeDraftBlocks,
     publishedBlocks: [],
-    updatedBy: userId,
+    updatedBy: user.id,
   });
 
-  revalidatePath("/dashboard/content");
+  revalidatePath("/admin/content");
   return { success: true, created: true };
 }
 
 export async function ensureMarketingPagesSeeded() {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   let createdCount = 0;
@@ -173,7 +193,7 @@ export async function ensureMarketingPagesSeeded() {
       status: "draft",
       draftBlocks: seed.blocks,
       publishedBlocks: [],
-      updatedBy: userId,
+      updatedBy: user.id,
     });
     createdCount += 1;
   }
@@ -182,7 +202,7 @@ export async function ensureMarketingPagesSeeded() {
 }
 
 export async function restoreMarketingPagesDefaults() {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   let restoredCount = 0;
@@ -196,23 +216,21 @@ export async function restoreMarketingPagesDefaults() {
           draftBlocks: serialize(seed.blocks),
           publishedBlocks: serialize(seed.blocks),
           publishedAt: new Date(),
-          updatedBy: userId,
+          updatedBy: user.id,
         },
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     restoredCount += 1;
-
-    const publicPath = seed.slug === "home" ? "/" : `/${seed.slug}`;
-    revalidatePath(publicPath);
+    revalidateContentPath(seed.slug);
   }
 
-  revalidatePath("/dashboard/content");
+  revalidatePath("/admin/content");
   return { success: true, restoredCount };
 }
 
 export async function addContentBlock(slug: string, type: ContentBlockType) {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   if (!CONTENT_BLOCK_TYPES.includes(type)) {
@@ -230,11 +248,63 @@ export async function addContentBlock(slug: string, type: ContentBlockType) {
     order: nextOrder,
     payload,
   });
-  page.updatedBy = userId;
+  page.updatedBy = user.id;
   page.markModified("draftBlocks");
   await page.save();
 
-  revalidatePath("/dashboard/content");
+  revalidatePath("/admin/content");
+  return { success: true };
+}
+
+export async function saveContentPageDraftBlocks(
+  slug: string,
+  blocks: Array<{
+    blockId: string;
+    type: ContentBlockType;
+    order: number;
+    payload: unknown;
+  }>
+) {
+  const user = await requireAdmin();
+  await connectDB();
+
+  const page = await ContentPage.findOne({ slug });
+  if (!page) throw new Error("Content page not found");
+
+  page.draftBlocks = normalizeBlocksOrder(
+    blocks.map((block, index) => ({
+      blockId: block.blockId,
+      type: block.type,
+      order: index,
+      payload: normalizePayload(block.type, block.payload),
+    }))
+  );
+  page.updatedBy = user.id;
+  page.markModified("draftBlocks");
+  await page.save();
+
+  revalidatePath("/admin/content");
+  return { success: true };
+}
+
+export async function restoreContentPageFromTemplate(slug: string) {
+  const user = await requireAdmin();
+  await connectDB();
+
+  const page = await ContentPage.findOne({ slug });
+  if (!page) throw new Error("Content page not found");
+  if (!page.templateId) throw new Error("No template assigned to this page");
+
+  const { getTemplateById, buildBlocksFromTemplate } = await import("@/features/templates/registry");
+  const template = getTemplateById(page.templateId);
+  if (!template) throw new Error("Template not found");
+
+  page.draftBlocks = buildBlocksFromTemplate(template);
+  page.updatedBy = user.id;
+  page.markModified("draftBlocks");
+  await page.save();
+
+  revalidatePath("/admin/content");
   return { success: true };
 }
 
@@ -243,7 +313,7 @@ export async function updateContentBlock(
   blockId: string,
   payload: unknown
 ) {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   const page = await ContentPage.findOne({ slug });
@@ -253,16 +323,16 @@ export async function updateContentBlock(
   if (!block) throw new Error("Block not found");
 
   block.payload = normalizePayload(block.type as ContentBlockType, payload);
-  page.updatedBy = userId;
+  page.updatedBy = user.id;
   page.markModified("draftBlocks");
   await page.save();
 
-  revalidatePath("/dashboard/content");
+  revalidatePath("/admin/content");
   return { success: true };
 }
 
 export async function deleteContentBlock(slug: string, blockId: string) {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   const page = await ContentPage.findOne({ slug });
@@ -270,16 +340,16 @@ export async function deleteContentBlock(slug: string, blockId: string) {
 
   page.draftBlocks = page.draftBlocks.filter((item: any) => item.blockId !== blockId);
   page.draftBlocks = normalizeBlocksOrder(page.draftBlocks);
-  page.updatedBy = userId;
+  page.updatedBy = user.id;
   page.markModified("draftBlocks");
   await page.save();
 
-  revalidatePath("/dashboard/content");
+  revalidatePath("/admin/content");
   return { success: true };
 }
 
 export async function reorderContentBlocks(slug: string, orderedIds: string[]) {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   const page = await ContentPage.findOne({ slug });
@@ -300,41 +370,38 @@ export async function reorderContentBlocks(slug: string, orderedIds: string[]) {
   }
 
   page.draftBlocks = reordered.map((block, index) => ({ ...block, order: index }));
-  page.updatedBy = userId;
+  page.updatedBy = user.id;
   page.markModified("draftBlocks");
   await page.save();
 
-  revalidatePath("/dashboard/content");
+  revalidatePath("/admin/content");
   return { success: true };
 }
 
 export async function publishContentPage(slug: string) {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   const page = await ContentPage.findOne({ slug });
   if (!page) throw new Error("Content page not found");
 
-  const nextPublishedBlocks = normalizeBlocksOrder(
+  const nextPublishedBlocks = PageContentService.normalizeBlocksForSave(
     page.draftBlocks.map((block: any) => ({
       blockId: block.blockId,
       type: block.type,
       order: block.order,
-      payload: normalizePayload(block.type, block.payload),
+      payload: block.payload,
     }))
   );
   runContentSmokeChecks(nextPublishedBlocks);
   page.publishedBlocks = nextPublishedBlocks;
   page.status = "published";
   page.publishedAt = new Date();
-  page.updatedBy = userId;
+  page.updatedBy = user.id;
   page.markModified("publishedBlocks");
   await page.save();
 
-  if (slug === "home") {
-    revalidatePath("/");
-  }
-  revalidatePath("/dashboard/content");
+  revalidateContentPath(slug);
   return { success: true };
 }
 
@@ -350,19 +417,16 @@ export async function runContentPageSmokeTests(slug: string) {
 }
 
 export async function unpublishContentPage(slug: string) {
-  const userId = await requireAdmin();
+  const user = await requireAdmin();
   await connectDB();
 
   const page = await ContentPage.findOne({ slug });
   if (!page) throw new Error("Content page not found");
 
   page.status = "draft";
-  page.updatedBy = userId;
+  page.updatedBy = user.id;
   await page.save();
 
-  if (slug === "home") {
-    revalidatePath("/");
-  }
-  revalidatePath("/dashboard/content");
+  revalidateContentPath(slug);
   return { success: true };
 }

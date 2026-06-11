@@ -1,0 +1,29 @@
+---
+description: Mobile-first UI/UX rules for admin and authoring surfaces
+globs: src/components/**/*.tsx
+alwaysApply: false
+---
+
+# UI/UX Standards
+
+## Mobile-first
+
+- No hover-only controls (`opacity-0 group-hover:opacity-100`). Use always-visible actions or a kebab/dropdown menu.
+- Header action rows: `flex flex-wrap gap-2`
+- Dense tables: card/stack layout below `md` breakpoint
+- Dialog forms: `grid grid-cols-1 sm:grid-cols-4` not fixed `grid-cols-4`
+
+## Touch targets
+
+- Minimum interactive size ~44px on mobile (`h-10`, `min-h-10`)
+- Spacing between adjacent actions: `gap-2` minimum
+
+## Dialogs
+
+- Max width: `max-w-lg` default, `max-w-4xl` for editors
+- Height: `max-h-[90vh] overflow-y-auto` on small screens
+
+## Admin shell
+
+- Sidebar collapses to drawer on mobile (Sheet)
+- Page titles + primary action in sticky header with wrap

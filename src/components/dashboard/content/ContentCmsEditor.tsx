@@ -10,10 +10,12 @@ import {
   publishContentPage,
   reorderContentBlocks,
   restoreMarketingPagesDefaults,
+  restoreContentPageFromTemplate,
   runContentPageSmokeTests,
   unpublishContentPage,
   updateContentBlock,
   updateContentPageTitle,
+  updateContentPageMeta,
   upsertContentPage,
 } from "@/actions/content-actions";
 import { Button } from "@/components/ui/button";
@@ -25,9 +27,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MediaManager } from "@/components/lecturer/MediaManager";
-import { ArrowDown, ArrowUp, Eye, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, LayoutTemplate, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { CONTENT_BLOCK_TYPES, BLOCK_TYPE_LABELS, ContentBlockType } from "@/lib/content/types";
 import { MarketingBlockRenderer } from "@/components/content/MarketingBlockRenderer";
+import { SortableBlockList } from "@/components/dashboard/content/SortableBlockList";
+import { VisualPageEditor } from "@/features/cms-editor/VisualPageEditor";
+import { SettingsImageField } from "@/components/admin/SettingsImageField";
+import { listTemplates } from "@/features/templates/registry";
 import { toast } from "sonner";
 
 type ContentPageSummary = {
@@ -49,9 +55,17 @@ type ContentPageDetail = {
   slug: string;
   title: string;
   status: "draft" | "published";
+  templateId?: string;
   draftBlocks: ContentBlock[];
   publishedBlocks: ContentBlock[];
+  meta?: {
+    seoTitle?: string;
+    seoDescription?: string;
+    ogImage?: string;
+  };
 };
+
+const PAGE_TEMPLATES = listTemplates();
 
 interface ContentCmsEditorProps {
   initialPages: ContentPageSummary[];
@@ -64,9 +78,15 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
   const [isPending, startTransition] = useTransition();
   const [newSlug, setNewSlug] = useState("");
   const [newTitle, setNewTitle] = useState("");
+  const [newTemplateId, setNewTemplateId] = useState(PAGE_TEMPLATES[0]?.id || "");
   const [newBlockType, setNewBlockType] = useState<ContentBlockType>("hero");
-  const [viewMode, setViewMode] = useState<"editor" | "preview">("editor");
+  const [viewMode, setViewMode] = useState<"editor" | "visual" | "preview">("visual");
   const [editablePageTitle, setEditablePageTitle] = useState("");
+  const [pageMeta, setPageMeta] = useState({
+    seoTitle: "",
+    seoDescription: "",
+    ogImage: "",
+  });
 
   async function refreshPages() {
     const allPages = await getContentPagesAdmin();
@@ -80,6 +100,11 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
     const response = await getContentPageAdmin(slug);
     setPage(response);
     setEditablePageTitle(response?.title || "");
+    setPageMeta({
+      seoTitle: response?.meta?.seoTitle || "",
+      seoDescription: response?.meta?.seoDescription || "",
+      ogImage: response?.meta?.ogImage || "",
+    });
   }
 
   async function runAction<T>(
@@ -170,7 +195,7 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Új tartalom oldal</CardTitle>
         </CardHeader>
-        <CardContent className="grid md:grid-cols-3 gap-3">
+        <CardContent className="grid md:grid-cols-4 gap-3">
           <div className="space-y-1">
             <Label htmlFor="cms-slug">Slug</Label>
             <Input
@@ -189,19 +214,45 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
               placeholder="Oldal neve"
             />
           </div>
+          <div className="space-y-1">
+            <Label htmlFor="cms-template">Sablon</Label>
+            <Select value={newTemplateId} onValueChange={setNewTemplateId}>
+              <SelectTrigger id="cms-template">
+                <SelectValue placeholder="Sablon választása" />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_TEMPLATES.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {newTemplateId ? (
+              <p className="text-xs text-muted-foreground">
+                {PAGE_TEMPLATES.find((t) => t.id === newTemplateId)?.description}
+              </p>
+            ) : null}
+          </div>
           <div className="flex items-end">
             <Button
               className="w-full"
               onClick={() =>
                 startTransition(async () => {
                   const result = await runAction(
-                    () => upsertContentPage({ slug: newSlug, title: newTitle }),
+                    () =>
+                      upsertContentPage({
+                        slug: newSlug,
+                        title: newTitle,
+                        templateId: newTemplateId || undefined,
+                      }),
                     { success: "Tartalom oldal létrehozva." }
                   );
                   if (!result) return;
                   setNewSlug("");
                   setNewTitle("");
                   await runAction(() => refreshPages());
+                  setSelectedSlug(newSlug.trim().toLowerCase());
                 })
               }
               disabled={!newSlug.trim() || !newTitle.trim() || isPending}
@@ -295,17 +346,74 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
                     </Button>
                   </div>
 
+                  <div className="grid gap-3 sm:grid-cols-2 border-t pt-4">
+                    <div className="space-y-1">
+                      <Label>SEO cím</Label>
+                      <Input
+                        value={pageMeta.seoTitle}
+                        onChange={(e) =>
+                          setPageMeta({ ...pageMeta, seoTitle: e.target.value })
+                        }
+                        placeholder="Meta title (optional)"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <SettingsImageField
+                        label="OG kép"
+                        value={pageMeta.ogImage}
+                        onChange={(ogImage) => setPageMeta({ ...pageMeta, ogImage })}
+                        aspect={16 / 9}
+                        recommendedSize={{ width: 1200, height: 630 }}
+                        usageLabel="Oldal OG kép"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label>SEO leírás</Label>
+                      <Textarea
+                        value={pageMeta.seoDescription}
+                        onChange={(e) =>
+                          setPageMeta({ ...pageMeta, seoDescription: e.target.value })
+                        }
+                        placeholder="Meta description"
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="sm:col-span-2 w-fit"
+                      onClick={() =>
+                        startTransition(async () => {
+                          const result = await runAction(
+                            () => updateContentPageMeta(page.slug, pageMeta),
+                            { success: "SEO meta mentve." }
+                          );
+                          if (!result) return;
+                        })
+                      }
+                    >
+                      <Save className="h-4 w-4 mr-1" /> SEO mentés
+                    </Button>
+                  </div>
+
                   {/* Actions row */}
                   <div className="flex items-center justify-between gap-3 flex-wrap border-t pt-4">
                     {/* View toggle */}
                     <div className="flex gap-1 bg-muted rounded-md p-0.5">
                       <Button
                         size="sm"
+                        variant={viewMode === "visual" ? "default" : "ghost"}
+                        className="h-8 gap-1.5"
+                        onClick={() => setViewMode("visual")}
+                      >
+                        <LayoutTemplate className="h-3.5 w-3.5" /> Vizuális
+                      </Button>
+                      <Button
+                        size="sm"
                         variant={viewMode === "editor" ? "default" : "ghost"}
                         className="h-8 gap-1.5"
                         onClick={() => setViewMode("editor")}
                       >
-                        <Pencil className="h-3.5 w-3.5" /> Szerkesztő
+                        <Pencil className="h-3.5 w-3.5" /> Űrlap
                       </Button>
                       <Button
                         size="sm"
@@ -374,6 +482,28 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
                       >
                         Publikálás
                       </Button>
+                      {page.templateId ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const confirmed = window.confirm(
+                              "Biztosan visszaállítod az oldalt a sablon alapértelmezett tartalmára? Ez felülírja a piszkozat blokkokat."
+                            );
+                            if (!confirmed) return;
+                            startTransition(async () => {
+                              const result = await runAction(
+                                () => restoreContentPageFromTemplate(page.slug),
+                                { success: "Sablon alapértelmezések visszaállítva." }
+                              );
+                              if (!result) return;
+                              await runAction(() => loadPage(page.slug));
+                            });
+                          }}
+                        >
+                          Sablon visszaállítása
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </CardContent>
@@ -414,6 +544,15 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
                 </div>
               )}
 
+              {/* Visual editor view */}
+              {viewMode === "visual" && page && (
+                <VisualPageEditor
+                  slug={page.slug}
+                  initialBlocks={sortedDraftBlocks}
+                  onBlocksSaved={() => loadPage(page.slug)}
+                />
+              )}
+
               {/* Editor view */}
               {viewMode === "editor" && (
                 <div className="space-y-4">
@@ -422,8 +561,20 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
                       Ez az oldal még üres. Adj hozzá blokkot a szerkesztéshez.
                     </p>
                   )}
-                  {sortedDraftBlocks.map((block, index) => (
-                    <Card key={block.blockId} className="border-dashed">
+                  <SortableBlockList
+                    blocks={sortedDraftBlocks}
+                    onReorder={(ids) =>
+                      startTransition(async () => {
+                        const result = await runAction(
+                          () => reorderContentBlocks(page.slug, ids),
+                          { success: "Blokkok átrendezve." }
+                        );
+                        if (!result) return;
+                        await runAction(() => loadPage(page.slug));
+                      })
+                    }
+                    renderBlock={(block, index) => (
+                    <Card className="border-dashed">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <CardTitle className="text-base">
@@ -508,7 +659,8 @@ export default function ContentCmsEditor({ initialPages }: ContentCmsEditorProps
                         />
                       </CardContent>
                     </Card>
-                  ))}
+                    )}
+                  />
                 </div>
               )}
 
@@ -550,7 +702,7 @@ function BlockEditorForm({
 }) {
   const [payload, setPayload] = useState<any>(block.payload || {});
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
-  const [mediaTarget, setMediaTarget] = useState<{ key: "url" | "personImage" | "accordionMedia"; index?: number } | null>(null);
+  const [mediaTarget, setMediaTarget] = useState<{ key: "url" | "personImage" | "accordionMedia" | "cardImage"; index?: number } | null>(null);
 
   useEffect(() => {
     setPayload(block.payload || {});
@@ -564,7 +716,7 @@ function BlockEditorForm({
     return arr.filter((_, i) => i !== idx);
   }
 
-  function openMediaPicker(target: { key: "url" | "personImage" | "accordionMedia"; index?: number }) {
+  function openMediaPicker(target: { key: "url" | "personImage" | "accordionMedia" | "cardImage"; index?: number }) {
     setMediaTarget(target);
     setIsMediaPickerOpen(true);
   }
@@ -589,6 +741,9 @@ function BlockEditorForm({
           i === mediaTarget.index ? { ...item, mediaUrl: url } : item
         ),
       }));
+    }
+    if (mediaTarget.key === "cardImage") {
+      setPayload((prev: any) => ({ ...prev, imageUrl: url }));
     }
     setIsMediaPickerOpen(false);
     setMediaTarget(null);
@@ -1235,6 +1390,183 @@ function BlockEditorForm({
               <Plus className="h-3.5 w-3.5 mr-1" /> Új személy
             </Button>
           </div>
+        </>
+      )}
+
+      {block.type === "container" && (
+        <>
+          <div className="space-y-1">
+            <Label>Cím (opcionális)</Label>
+            <Input
+              value={payload.title || ""}
+              onChange={(e) => setPayload({ ...payload, title: e.target.value })}
+            />
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label>Szélesség</Label>
+              <Select
+                value={payload.maxWidth || "lg"}
+                onValueChange={(v) => setPayload({ ...payload, maxWidth: v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["sm", "md", "lg", "xl", "full"].map((v) => (
+                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Padding</Label>
+              <Select
+                value={payload.padding || "md"}
+                onValueChange={(v) => setPayload({ ...payload, padding: v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["none", "sm", "md", "lg"].map((v) => (
+                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Háttér</Label>
+              <Select
+                value={payload.background || "default"}
+                onValueChange={(v) => setPayload({ ...payload, background: v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["default", "muted", "navy"].map((v) => (
+                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <RichTextEditor
+            value={payload.html || "<p></p>"}
+            onChange={(html) => setPayload({ ...payload, html })}
+          />
+        </>
+      )}
+
+      {block.type === "card" && (
+        <>
+          <Input
+            value={payload.title || ""}
+            placeholder="Card title"
+            onChange={(e) => setPayload({ ...payload, title: e.target.value })}
+          />
+          <Textarea
+            value={payload.description || ""}
+            placeholder="Description"
+            onChange={(e) => setPayload({ ...payload, description: e.target.value })}
+          />
+          <div className="flex gap-2">
+            <Input
+              value={payload.imageUrl || ""}
+              placeholder="Image URL"
+              onChange={(e) => setPayload({ ...payload, imageUrl: e.target.value })}
+              className="flex-1"
+            />
+            <Button type="button" variant="outline" onClick={() => openMediaPicker({ key: "cardImage" })}>
+              Médiatár
+            </Button>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-2">
+            <Input
+              value={payload.buttonLabel || ""}
+              placeholder="Button label"
+              onChange={(e) => setPayload({ ...payload, buttonLabel: e.target.value })}
+            />
+            <Input
+              value={payload.buttonHref || ""}
+              placeholder="Button URL"
+              onChange={(e) => setPayload({ ...payload, buttonHref: e.target.value })}
+            />
+          </div>
+        </>
+      )}
+
+      {block.type === "form" && (
+        <>
+          <Input
+            value={payload.title || ""}
+            placeholder="Form title"
+            onChange={(e) => setPayload({ ...payload, title: e.target.value })}
+          />
+          <Textarea
+            value={payload.description || ""}
+            placeholder="Description"
+            onChange={(e) => setPayload({ ...payload, description: e.target.value })}
+          />
+          <Input
+            value={payload.actionUrl || ""}
+            placeholder="Submit URL (leave empty for demo)"
+            onChange={(e) => setPayload({ ...payload, actionUrl: e.target.value })}
+          />
+          <Label>Fields</Label>
+          {(payload.fields || []).map((field: any, idx: number) => (
+            <div key={idx} className="border rounded-md p-3 space-y-2">
+              <div className="grid sm:grid-cols-2 gap-2">
+                <Input
+                  value={field.label || ""}
+                  placeholder="Label"
+                  onChange={(e) =>
+                    setPayload({
+                      ...payload,
+                      fields: updateArrayItem(payload.fields, idx, { label: e.target.value, name: field.name || e.target.value.toLowerCase().replace(/\s+/g, "_") }),
+                    })
+                  }
+                />
+                <Select
+                  value={field.type || "text"}
+                  onValueChange={(v) =>
+                    setPayload({
+                      ...payload,
+                      fields: updateArrayItem(payload.fields, idx, { type: v }),
+                    })
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["text", "email", "textarea", "tel"].map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setPayload({ ...payload, fields: removeArrayItem(payload.fields || [], idx) })
+                }
+              >
+                Remove field
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setPayload({
+                ...payload,
+                fields: [
+                  ...(payload.fields || []),
+                  { name: "field", label: "Field", type: "text", required: false, placeholder: "" },
+                ],
+              })
+            }
+          >
+            Add field
+          </Button>
         </>
       )}
 

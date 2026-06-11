@@ -1,0 +1,34 @@
+---
+description: Core architecture and layering conventions for 365daysdarts
+alwaysApply: true
+---
+
+# Architecture
+
+## Layers
+
+- **Routes** (`src/app/`) — thin pages; fetch data server-side, delegate to components
+- **Server actions** (`src/actions/`) — mutations and authorized reads; always guard with `src/lib/authz.ts`
+- **Services** (`src/services/`) — reusable business logic (CMS, settings)
+- **Models** (`src/models/`) — Mongoose schemas only
+- **Components** (`src/components/`) — UI; no direct DB access
+
+## Auth
+
+Use `requireAdmin()`, `requireRole()`, or `getAuthSession()` from `@/lib/authz` and `@/lib/session`. Do not duplicate `session?.user?.role !== "admin"` checks.
+
+## Admin routes
+
+Admin UI lives under `/admin/*`. Role dashboards stay at `/dashboard`. Lecturer tools at `/lecturer/*`.
+
+## CMS
+
+- Block types defined in `src/lib/content/types.ts` with Zod schemas
+- Public rendering in `MarketingBlockRenderer` only — no business logic
+- Settings (SEO, branding, theme) via `src/services/*-settings.ts` singleton docs
+
+## Do not
+
+- Put Mongoose calls in React components
+- Hardcode tenant branding in shared admin chrome
+- Add new marketing pages as static `page.tsx` files — use CMS + dynamic `[...slug]` route

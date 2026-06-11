@@ -19,12 +19,22 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
         token.subscriptionStatus = user.subscriptionStatus;
       }
+
+      if (trigger === "update" && session?.user && token.id) {
+        await connectDB();
+        const dbUser = await User.findById(token.id).lean();
+        if (dbUser) {
+          token.role = dbUser.role;
+          token.subscriptionStatus = dbUser.subscriptionStatus || "inactive";
+        }
+      }
+
       return token;
     },
     async signIn({ user, account }) {

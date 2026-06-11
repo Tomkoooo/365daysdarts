@@ -17,11 +17,18 @@ import { NotificationBell } from "@/components/layout/NotificationBell"
 import { useState } from "react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import type { BrandingSettings } from "@/services/branding-settings"
 
-export function Navbar() {
+type NavbarProps = {
+  branding?: Pick<BrandingSettings, "brandName" | "logoNav">;
+};
+
+export function Navbar({ branding }: NavbarProps) {
   const { data: session } = useSession()
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
+  const brandName = branding?.brandName || "365daysdarts"
+  const logoSrc = branding?.logoNav || "/logo.svg"
 
   const NavLink = ({ href, children, mobile = false }: { href: string; children: React.ReactNode; mobile?: boolean }) => {
     const isActive = pathname === href
@@ -46,8 +53,8 @@ export function Navbar() {
         
         {/* Logo */}
         <Link href="/" className="font-bold text-xl tracking-tight flex items-center gap-2 mr-8">
-           <Image src="/logo.svg" alt="Logo" width={40} height={40} className="w-10 h-10" />
-           <span className="text-2xl hidden sm:inline-block"><span className="text-cta">365days</span>darts</span>
+           <Image src={logoSrc} alt={brandName} width={40} height={40} className="w-10 h-10" />
+           <span className="text-2xl hidden sm:inline-block text-white">{brandName}</span>
         </Link>
 
         {/* Desktop Navigation */}
@@ -113,6 +120,11 @@ export function Navbar() {
                 <DropdownMenuItem asChild className="focus:bg-navy-lighter focus:text-cta cursor-pointer">
                   <Link href="/dashboard" className="flex items-center"><LayoutDashboard className="mr-2 h-4 w-4" /> Irányítópult</Link>
                 </DropdownMenuItem>
+                {session.user.role === "admin" && (
+                  <DropdownMenuItem asChild className="focus:bg-navy-lighter focus:text-cta cursor-pointer">
+                    <Link href="/admin" className="flex items-center"><LayoutDashboard className="mr-2 h-4 w-4" /> Admin</Link>
+                  </DropdownMenuItem>
+                )}
                  <DropdownMenuItem onClick={() => signOut()} className="focus:bg-navy-lighter focus:text-destructive cursor-pointer text-destructive">
                   <LogOut className="mr-2 h-4 w-4" /> Kijelentkezés
                 </DropdownMenuItem>
@@ -141,7 +153,7 @@ export function Navbar() {
                 <div className="flex flex-col gap-6 mt-8 h-full overflow-y-auto flex-1 px-6 pb-12">
                     {/* Mobile Brand */}
                     <div className="flex items-center gap-2 font-bold text-xl mb-4 shrink-0">
-                        <span className="text-cta">365days</span>darts
+                        {brandName}
                     </div>
 
                     <div className="flex flex-col gap-4">

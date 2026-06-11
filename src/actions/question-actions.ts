@@ -33,6 +33,29 @@ export async function createQuestion(moduleId: string, data: { text: string, opt
     return JSON.parse(JSON.stringify(newQuestion));
 }
 
+export async function updateQuestion(
+    questionId: string,
+    data: { text: string; options: string[]; correctOptions: number[] }
+) {
+    const session = await getAuthSession();
+    if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+    const updated = await Question.findByIdAndUpdate(
+        questionId,
+        {
+            text: data.text,
+            options: data.options,
+            correctOptions: data.correctOptions,
+        },
+        { new: true }
+    );
+    if (!updated) throw new Error("Kérdés nem található");
+    return JSON.parse(JSON.stringify(updated));
+}
+
 export async function deleteQuestion(questionId: string) {
     const session = await getAuthSession();
     if (session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {

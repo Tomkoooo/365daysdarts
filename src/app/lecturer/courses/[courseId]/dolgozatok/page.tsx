@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, FileSpreadsheet, Trash2, Users, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useScheduledDelete } from "@/hooks/use-scheduled-delete";
 
 export default function DolgozatokListPage() {
   const params = useParams();
@@ -17,6 +18,7 @@ export default function DolgozatokListPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const { hiddenIds, scheduleDelete } = useScheduledDelete();
 
   async function load() {
     try {
@@ -56,16 +58,21 @@ export default function DolgozatokListPage() {
     }
   }
 
-  async function handleArchive(id: string) {
-    if (!confirm("Archiválod ezt a dolgozatot?")) return;
-    const result = await archiveDolgozat(id);
-    if (result.success) {
-      toast.success("Archiválva");
-      load();
-    } else {
-      toast.error(result.error || "Hiba");
-    }
+  function handleArchive(item: { _id: string; title: string }) {
+    scheduleDelete(item._id, {
+      confirmMessage: `Biztosan archiválja a „${item.title}” dolgozatot? A művelet 10 másodpercig visszavonható.`,
+      toastTitle: `${item.title} archiválva`,
+      onExecute: async () => {
+        const result = await archiveDolgozat(item._id);
+        if (!result.success) {
+          return { success: false, error: result.error || "Hiba" };
+        }
+      },
+      onAfterExecute: () => load(),
+    });
   }
+
+  const visibleItems = items.filter((d) => !hiddenIds.includes(d._id));
 
   if (loading) {
     return (
@@ -96,7 +103,7 @@ export default function DolgozatokListPage() {
         </Button>
       </div>
 
-      {items.length === 0 ? (
+      {visibleItems.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             Még nincs dolgozat. Hozz létre egyet!
@@ -104,7 +111,7 @@ export default function DolgozatokListPage() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {items.map((d) => (
+          {visibleItems.map((d) => (
             <Card key={d._id}>
               <CardHeader className="pb-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -155,7 +162,7 @@ export default function DolgozatokListPage() {
                     )}
                     Export
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleArchive(d._id)}>
+                  <Button size="sm" variant="ghost" onClick={() => handleArchive(d)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
