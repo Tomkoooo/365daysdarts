@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { haveSelectionsChanged } from "@/lib/option-selector-utils";
 
 type StudentOptionSelectorListProps = {
   courseId: string;
@@ -55,9 +56,9 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
     });
   }
 
-  async function handleSubmit(selectorId: string) {
+  async function handleSubmit(selectorId: string, hasResponded: boolean) {
     const optionIds = selections[selectorId] || [];
-    if (optionIds.length === 0) {
+    if (optionIds.length === 0 && !hasResponded) {
       toast.error("Válassz legalább egy opciót");
       return;
     }
@@ -65,7 +66,9 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
     const result = await submitStudentResponse(selectorId, optionIds);
     setSubmittingId(null);
     if (result.success) {
-      toast.success("Jelentkezés mentve");
+      toast.success(
+        optionIds.length === 0 ? "Jelentkezés visszavonva" : "Jelentkezés mentve"
+      );
       load();
     } else {
       toast.error(result.error || "Hiba történt");
@@ -87,9 +90,13 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
       <h2 className="text-lg font-semibold">Opcióválasztók / Jelentkezések</h2>
       {items.map((item) => {
         const selected = selections[item._id] || [];
+        const savedSelection = item.myOptionIds || [];
         const needsResponse = !item.hasResponded;
         const canChange = item.canChange !== false;
         const isPastDeadline = item.isPastDeadline === true;
+        const selectionChanged = haveSelectionsChanged(savedSelection, selected);
+        const canSubmit =
+          item.hasResponded ? selectionChanged : selected.length > 0;
 
         return (
           <Card
@@ -138,8 +145,7 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
               <div className="grid gap-2">
                 {item.options.map((opt: any) => {
                   const isSelected = selected.includes(opt._id);
-                  const disabled =
-                    !canChange || (opt.isFull && !isSelected);
+                  const disabled = !canChange || (!isSelected && opt.isFull);
 
                   return (
                     <label
@@ -181,18 +187,22 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
               {canChange && (
                 <Button
                   size="sm"
-                  disabled={submittingId === item._id || selected.length === 0}
-                  onClick={() => handleSubmit(item._id)}
+                  disabled={submittingId === item._id || !canSubmit}
+                  onClick={() => handleSubmit(item._id, item.hasResponded)}
                 >
                   {submittingId === item._id && (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   )}
-                  {item.hasResponded ? "Módosítás mentése" : "Jelentkezés"}
+                  {selected.length === 0 && item.hasResponded
+                    ? "Jelentkezés visszavonása"
+                    : item.hasResponded
+                      ? "Módosítás mentése"
+                      : "Jelentkezés"}
                 </Button>
               )}
               {item.hasResponded && canChange && (
                 <p className="text-xs text-muted-foreground">
-                  A határidőig módosíthatod a választásodat.
+                  A határidőig módosíthatod vagy visszavonhatod a választásodat.
                 </p>
               )}
             </CardContent>

@@ -10,6 +10,7 @@ import {
   countResponsesForOption,
   getStudentSelectedOptionIds,
   hasStudentResponded,
+  isOptionFullForStudent,
   isPastDeadline,
 } from "@/lib/option-selector-utils";
 import mongoose from "mongoose";
@@ -183,7 +184,13 @@ export async function getOptionSelectorById(id: string) {
   const optionsWithAvailability = normalized.options.map((o) => {
     const count = countResponsesForOption(normalized.responses as any, o._id);
     const limit = o.limit ?? 0;
-    const isFull = limit > 0 && count >= limit;
+    const isFull = isOptionFullForStudent(
+      normalized.responses as any,
+      o._id,
+      limit,
+      session.user.id,
+      myOptionIds
+    );
     return { ...o, count, isFull };
   });
 
@@ -341,7 +348,13 @@ export async function listPublishedOptionSelectorsForStudent(courseId: string) {
     const optionsWithAvailability = normalized.options.map((o) => {
       const count = countResponsesForOption(normalized.responses as any, o._id);
       const limit = o.limit ?? 0;
-      const isFull = limit > 0 && count >= limit;
+      const isFull = isOptionFullForStudent(
+        normalized.responses as any,
+        o._id,
+        limit,
+        userId,
+        myOptionIds
+      );
       return { ...o, count, isFull };
     });
     const canChange = canChangeResponse(normalized);
@@ -364,10 +377,6 @@ export async function submitStudentResponse(
   const session = await getAuthSession();
   if (!session?.user?.id) return { success: false, error: "Bejelentkezés szükséges" };
 
-  if (!optionIds.length) {
-    return { success: false, error: "Válassz legalább egy opciót" };
-  }
-
   await connectDB();
   const selector = await OptionSelector.findById(optionSelectorId);
   if (!selector || !selector.isPublished || selector.isArchived) {
@@ -377,6 +386,13 @@ export async function submitStudentResponse(
   const courseId = selector.courseId.toString();
   if (!(await ensureStudentCourseAccess(session, courseId))) {
     return { success: false, error: "Nincs jogosultság" };
+  }
+
+  const studentId = session.user.id;
+  const hadResponses = hasStudentResponded(selector.responses as any, studentId);
+
+  if (!optionIds.length && !hadResponses) {
+    return { success: false, error: "Válassz legalább egy opciót" };
   }
 
   if (!selector.allowMultiple && optionIds.length > 1) {
@@ -396,7 +412,6 @@ export async function submitStudentResponse(
     }
   }
 
-  const studentId = session.user.id;
   const otherResponses = selector.responses.filter(
     (r: { studentId: { toString(): string } }) => r.studentId.toString() !== studentId
   );
