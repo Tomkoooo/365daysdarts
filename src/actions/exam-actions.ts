@@ -9,6 +9,12 @@ import mongoose from "mongoose"; // Added
 
 import ExamResult from "@/models/ExamResult";
 import User from "@/models/User";
+import Dolgozat from "@/models/Dolgozat";
+import DolgozatSubmission from "@/models/DolgozatSubmission";
+import OptionSelector from "@/models/OptionSelector";
+import { getModuleIdsWithQuestions, isEligibleForFinalExam } from "@/lib/module-exams";
+import { getSubmissionStatus, STATUS_LABELS } from "@/lib/dolgozat-utils";
+import * as XLSX from "xlsx";
 
 // --- Practice Mode ---
 
@@ -127,17 +133,12 @@ export async function startFinalExam(courseId: string) {
   const courseProgress = user?.progress?.get(courseId.toString()) || {};
   const extraRetries = courseProgress.extraRetries || 0;
 
-  // Check if all modules are completed
-  const completedModules = courseProgress.completedModules || [];
-  
-  // Robust check: compare as strings
-  const allModulesPassed = course.modules.every((m: any) => {
-      const mId = m._id ? m._id.toString() : m.toString();
-      const isDone = completedModules.includes(mId);
-      return isDone;
-  });
-  
-  if (!allModulesPassed) {
+  const completedModules = (courseProgress.completedModules || []).map((id: string) => id.toString());
+  const moduleIds = course.modules.map((m: any) => (m._id ? m._id.toString() : m.toString()));
+  const modulesRequiringExam = Array.from(await getModuleIdsWithQuestions(moduleIds));
+  const finalExamUnlocked = !!courseProgress.finalExamUnlocked;
+
+  if (!isEligibleForFinalExam(completedModules, modulesRequiringExam, finalExamUnlocked)) {
       return { error: "HIBA: A záróvizsga megkezdése előtt minden modulzáró vizsgát sikeresen teljesítened kell!" };
   }
 
@@ -479,6 +480,125 @@ async function ensureLecturerCanAccessCourse(session: any, courseId: string) {
     return !!course && course.authorId?.toString() === session?.user?.id;
 }
 
+function formatHuDate(value: Date | string | null | undefined) {
+    if (!value) return "";
+    return new Date(value).toLocaleString("hu-HU");
+}
+
+function progressObject(progress: unknown): Record<string, any> {
+    if (!progress) return {};
+    if (progress instanceof Map) return Object.fromEntries(progress);
+    return progress as Record<string, any>;
+}
+
+async function getStudentDolgozatStatusForCourse(studentId: string, courseId: string) {
+    const dolgozatok = await Dolgozat.find({
+        courseId,
+        isArchived: false,
+        isPublished: true,
+    })
+        .select("_id title maxPoints deadlineAt")
+        .sort({ createdAt: 1 })
+        .lean();
+
+    const submissions = await DolgozatSubmission.find({ courseId, userId: studentId }).lean();
+    const submissionByDolgozat = new Map(
+        submissions.map((sub: any) => [sub.dolgozatId.toString(), sub])
+    );
+
+    return dolgozatok.map((dolgozat: any) => {
+        const submission = submissionByDolgozat.get(dolgozat._id.toString()) || null;
+        const status = getSubmissionStatus(submission);
+        return {
+            id: dolgozat._id.toString(),
+            title: dolgozat.title,
+            status,
+            statusLabel: STATUS_LABELS[status],
+            isSubmitted: !!submission?.submittedAt,
+            submittedAt: submission?.submittedAt || null,
+            isLate: submission?.isLate || false,
+            points: submission?.points ?? null,
+            maxPoints: dolgozat.maxPoints ?? null,
+            uploadedOnBehalf: !!submission?.uploadedOnBehalfBy,
+            photoCount: submission?.photos?.length || 0,
+        };
+    });
+}
+
+function normalizeObjectId(value: unknown): string {
+    if (value == null) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "object") {
+        const asString = (value as { toString(): string }).toString();
+        if (/^[a-f0-9]{24}$/i.test(asString)) return asString;
+
+        const inner = (value as { _id?: unknown })._id;
+        if (inner != null && inner !== value) {
+            return normalizeObjectId(inner);
+        }
+    }
+    return String(value);
+}
+
+async function getStudentOptionSelectionsForCourse(studentId: string, courseId: string) {
+    const normalizedStudentId = normalizeObjectId(studentId);
+    const selectors = await OptionSelector.find({
+        courseId,
+        isArchived: false,
+        isPublished: true,
+    })
+        .select("_id title allowMultiple options responses deadlineAt")
+        .sort({ createdAt: 1 })
+        .lean();
+
+    return selectors.map((selector: any) => {
+        const optionMap = new Map(
+            (selector.options || []).map((option: any) => [normalizeObjectId(option._id), option.text])
+        );
+        const studentResponses = (selector.responses || []).filter(
+            (response: any) => normalizeObjectId(response.studentId) === normalizedStudentId
+        );
+        const selectedIds = studentResponses.map((response: any) => normalizeObjectId(response.optionId));
+        const selectedOptions = selectedIds.map((id: string) => optionMap.get(id) || "Ismeretlen");
+        let latestResponseAt: Date | null = null;
+        for (const response of studentResponses) {
+            if (!response.createdAt) continue;
+            const createdAt = new Date(response.createdAt);
+            if (!latestResponseAt || createdAt > latestResponseAt) {
+                latestResponseAt = createdAt;
+            }
+        }
+
+        return {
+            id: selector._id.toString(),
+            title: selector.title,
+            allowMultiple: !!selector.allowMultiple,
+            hasResponded: selectedIds.length > 0,
+            selectedOptions,
+            selectionText: selectedOptions.length > 0 ? selectedOptions.join(", ") : null,
+            respondedAt: latestResponseAt,
+        };
+    });
+}
+
+function buildModuleSummaryText(modules: Array<{ title: string; status: string; bestScore: number | null }>) {
+    const statusLabels: Record<string, string> = {
+        passed: "Sikeres",
+        manual: "Manuális pass",
+        failed: "Sikertelen",
+        no_exam: "Nincs vizsga",
+        not_attempted: "Nincs kitöltve",
+    };
+
+    return modules
+        .map((module) => {
+            const label = statusLabels[module.status] || module.status;
+            const scorePart = module.bestScore !== null ? ` (${module.bestScore}%)` : "";
+            return `${module.title}: ${label}${scorePart}`;
+        })
+        .join("; ");
+}
+
 export async function getLecturerExamResults() {
     const session = await getAuthSession();
     if (session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
@@ -515,7 +635,7 @@ export async function getStudentStats() {
     if (scopedCourseIds.length === 0) return [];
 
     const [students, courses, examResults] = await Promise.all([
-        User.find({ role: 'student' }).select('name email progress').lean(),
+        User.find({ role: 'student' }).select('name email progress subscriptionStatus').lean(),
         Course.find({ _id: { $in: scopedCourseIds } })
             .select("title finalExamSettings modules")
             .populate({
@@ -536,6 +656,11 @@ export async function getStudentStats() {
             courseId: { $in: scopedCourseIds }
         }).lean()
     ]);
+
+    const allModuleIds = Array.from(new Set(
+        courses.flatMap((c: any) => (c.modules || []).map((m: any) => m._id.toString()))
+    ));
+    const modulesWithQuestions = await getModuleIdsWithQuestions(allModuleIds);
 
     const courseMap = new Map(courses.map((c: any) => [c._id.toString(), c]));
     const stats: any[] = [];
@@ -569,6 +694,12 @@ export async function getStudentStats() {
             const completedModulesCount = (progress.completedModules || []).length;
             const completedPagesCount = (progress.completedPages || []).length;
             const totalModules = course.modules?.length || 0;
+            const modulesRequiringExam = (course.modules || []).filter((m: any) =>
+                modulesWithQuestions.has(m._id.toString())
+            ).length;
+            const completedRequiredModules = (progress.completedModules || []).filter((id: string) =>
+                modulesWithQuestions.has(id.toString())
+            ).length;
             const totalPages = (course.modules || []).reduce((sum: number, m: any) => {
                 const pagesInModule = (m.chapters || []).reduce((chapterSum: number, c: any) => {
                     return chapterSum + (c.pages?.length || 0);
@@ -583,9 +714,13 @@ export async function getStudentStats() {
                 studentId: student._id.toString(),
                 name: student.name,
                 email: student.email,
+                subscriptionStatus: student.subscriptionStatus || "inactive",
+                isActive: student.subscriptionStatus === "active",
                 courseId,
                 courseTitle: course.title,
                 completedModulesCount,
+                completedRequiredModules,
+                modulesRequiringExam,
                 totalModules,
                 completedPagesCount,
                 totalPages,
@@ -641,6 +776,118 @@ export async function grantExtraRetry(studentId: string, courseId: string) {
     return { success: true };
 }
 
+async function updateStudentCourseProgress(
+    studentId: string,
+    courseId: string,
+    updater: (courseProgress: Record<string, any>) => void
+) {
+    const user = await User.findById(studentId);
+    if (!user) throw new Error("Student not found");
+
+    if (!user.progress) user.progress = new Map();
+    const courseProgress = user.progress.get(courseId.toString()) || {
+        completedModules: [],
+        completedPages: [],
+        manualModulePasses: [],
+    };
+
+    updater(courseProgress);
+    user.progress.set(courseId.toString(), courseProgress);
+    user.markModified("progress");
+    await user.save();
+
+    return { success: true };
+}
+
+export async function grantModulePass(studentId: string, courseId: string, moduleId: string) {
+    const session = await getAuthSession();
+    if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+    const canAccess = await ensureLecturerCanAccessCourse(session, courseId);
+    if (!canAccess) throw new Error("Unauthorized");
+
+    const module = await Module.findById(moduleId).select("courseId title").lean();
+    if (!module || module.courseId?.toString() !== courseId) {
+        throw new Error("Module not found in this course");
+    }
+
+    await updateStudentCourseProgress(studentId, courseId, (courseProgress) => {
+        if (!courseProgress.completedModules) courseProgress.completedModules = [];
+        if (!courseProgress.manualModulePasses) courseProgress.manualModulePasses = [];
+
+        const moduleIdStr = moduleId.toString();
+        if (!courseProgress.completedModules.includes(moduleIdStr)) {
+            courseProgress.completedModules.push(moduleIdStr);
+        }
+        if (!courseProgress.manualModulePasses.includes(moduleIdStr)) {
+            courseProgress.manualModulePasses.push(moduleIdStr);
+        }
+    });
+
+    return { success: true };
+}
+
+export async function revokeModulePass(studentId: string, courseId: string, moduleId: string) {
+    const session = await getAuthSession();
+    if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+    const canAccess = await ensureLecturerCanAccessCourse(session, courseId);
+    if (!canAccess) throw new Error("Unauthorized");
+
+    const moduleIdStr = moduleId.toString();
+
+    await updateStudentCourseProgress(studentId, courseId, (courseProgress) => {
+        courseProgress.completedModules = (courseProgress.completedModules || []).filter(
+            (id: string) => id !== moduleIdStr
+        );
+        courseProgress.manualModulePasses = (courseProgress.manualModulePasses || []).filter(
+            (id: string) => id !== moduleIdStr
+        );
+    });
+
+    return { success: true };
+}
+
+export async function grantFinalExamAccess(studentId: string, courseId: string) {
+    const session = await getAuthSession();
+    if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+    const canAccess = await ensureLecturerCanAccessCourse(session, courseId);
+    if (!canAccess) throw new Error("Unauthorized");
+
+    await updateStudentCourseProgress(studentId, courseId, (courseProgress) => {
+        courseProgress.finalExamUnlocked = true;
+    });
+
+    return { success: true };
+}
+
+export async function revokeFinalExamAccess(studentId: string, courseId: string) {
+    const session = await getAuthSession();
+    if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+    const canAccess = await ensureLecturerCanAccessCourse(session, courseId);
+    if (!canAccess) throw new Error("Unauthorized");
+
+    await updateStudentCourseProgress(studentId, courseId, (courseProgress) => {
+        courseProgress.finalExamUnlocked = false;
+    });
+
+    return { success: true };
+}
+
 export async function getStudentExamDetails(studentId: string, courseId: string) {
     const session = await getAuthSession();
     if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
@@ -653,9 +900,12 @@ export async function getStudentExamDetails(studentId: string, courseId: string)
         throw new Error("Unauthorized");
     }
 
-    const [student, course, attempts] = await Promise.all([
-        User.findById(studentId).select("name email progress").lean(),
-        Course.findById(courseId).select("title finalExamSettings").lean(),
+    const [student, course, attempts, dolgozatok, optionSelectors] = await Promise.all([
+        User.findById(studentId).select("name email progress subscriptionStatus").lean(),
+        Course.findById(courseId)
+            .select("title finalExamSettings modules")
+            .populate({ path: "modules", select: "_id title order quizSettings" })
+            .lean(),
         ExamResult.find({
             userId: studentId,
             courseId,
@@ -663,9 +913,14 @@ export async function getStudentExamDetails(studentId: string, courseId: string)
         })
             .sort({ completedAt: -1 })
             .lean(),
+        getStudentDolgozatStatusForCourse(studentId, courseId),
+        getStudentOptionSelectionsForCourse(studentId, courseId),
     ]);
 
     if (!student || !course) throw new Error("Not found");
+
+    const moduleIds = ((course as any).modules || []).map((m: any) => m._id.toString());
+    const modulesWithQuestions = await getModuleIdsWithQuestions(moduleIds);
 
     const questionIds = Array.from(new Set((attempts as any[]).flatMap((attempt: any) =>
         (attempt.answers || [])
@@ -675,8 +930,57 @@ export async function getStudentExamDetails(studentId: string, courseId: string)
     const questions = await Question.find({ _id: { $in: questionIds } }).select("text").lean();
 
     const questionTextMap = new Map((questions as any[]).map((q: any) => [q._id.toString(), q.text]));
-    const progressObj = (student as any)?.progress || {};
+    const progressObj = progressObject((student as any)?.progress);
     const courseProgress = progressObj[courseId] || {};
+    const completedModules: string[] = (courseProgress.completedModules || []).map((id: string) => id.toString());
+    const manualModulePasses: string[] = (courseProgress.manualModulePasses || []).map((id: string) => id.toString());
+    const finalExamUnlocked = !!courseProgress.finalExamUnlocked;
+    const modulesRequiringExam = Array.from(modulesWithQuestions);
+    const canStartFinalExam = isEligibleForFinalExam(completedModules, modulesRequiringExam, finalExamUnlocked);
+
+    const moduleAttemptsByModule = new Map<string, any[]>();
+    for (const attempt of attempts as any[]) {
+        if (attempt.type !== "module" || !attempt.moduleId) continue;
+        const key = attempt.moduleId.toString();
+        if (!moduleAttemptsByModule.has(key)) moduleAttemptsByModule.set(key, []);
+        moduleAttemptsByModule.get(key)!.push(attempt);
+    }
+
+    const modules = ((course as any).modules || [])
+        .slice()
+        .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+        .map((module: any) => {
+            const moduleId = module._id.toString();
+            const hasExam = modulesWithQuestions.has(moduleId);
+            const passingScore = module.quizSettings?.passingScore || 75;
+            const moduleAttempts = moduleAttemptsByModule.get(moduleId) || [];
+            const passedAttempts = moduleAttempts.filter((a: any) => a.score >= passingScore);
+            const bestAttempt = passedAttempts[0] || moduleAttempts[0] || null;
+            const isManuallyPassed = manualModulePasses.includes(moduleId);
+            const isPassed = completedModules.includes(moduleId);
+
+            let status: "passed" | "failed" | "not_attempted" | "no_exam" | "manual";
+            if (!hasExam) status = "no_exam";
+            else if (isManuallyPassed) status = "manual";
+            else if (isPassed && passedAttempts.length > 0) status = "passed";
+            else if (moduleAttempts.length > 0) status = "failed";
+            else if (isPassed) status = "passed";
+            else status = "not_attempted";
+
+            return {
+                id: moduleId,
+                title: module.title,
+                order: module.order || 0,
+                hasExam,
+                passingScore,
+                status,
+                isPassed,
+                isManuallyPassed,
+                attemptCount: moduleAttempts.length,
+                bestScore: bestAttempt ? bestAttempt.score : null,
+                lastAttemptAt: bestAttempt?.completedAt || moduleAttempts[0]?.completedAt || null,
+            };
+        });
 
     const formattedAttempts = (attempts as any[]).map((attempt: any) => ({
         id: attempt._id.toString(),
@@ -694,23 +998,282 @@ export async function getStudentExamDetails(studentId: string, courseId: string)
         }))
     }));
 
+    const finalExams = (attempts as any[]).filter((attempt) => attempt.type === "final");
+    const latestFinal = finalExams[0] || null;
+    const finalPassingScore = (course as any).finalExamSettings?.passingScore || 75;
+
     return JSON.parse(JSON.stringify({
         student: {
             id: studentId,
             name: (student as any).name,
-            email: (student as any).email
+            email: (student as any).email,
+            subscriptionStatus: (student as any).subscriptionStatus || "inactive",
+            isActive: (student as any).subscriptionStatus === "active",
         },
         course: {
             id: courseId,
             title: (course as any).title,
-            passingScore: (course as any).finalExamSettings?.passingScore || 75
+            passingScore: finalPassingScore
         },
         progress: {
             completedPages: courseProgress.completedPages || [],
-            completedModules: courseProgress.completedModules || [],
+            completedPagesCount: (courseProgress.completedPages || []).length,
+            completedModules,
+            manualModulePasses,
+            finalExamUnlocked,
+            canStartFinalExam,
+            modulesRequiringExamCount: modulesRequiringExam.length,
+            modulesPassedCount: modulesRequiringExam.filter((id) => completedModules.includes(id)).length,
             lastViewedAt: courseProgress.lastViewedAt || null,
-            courseCompleted: !!courseProgress.courseCompleted
+            courseCompleted: !!courseProgress.courseCompleted,
+            extraRetries: courseProgress.extraRetries || 0,
+            finalExamScore: latestFinal ? latestFinal.score : null,
+            finalExamPassed: latestFinal ? latestFinal.score >= finalPassingScore : false,
+            finalExamAttempts: finalExams.length,
+        },
+        modules,
+        dolgozatok,
+        optionSelectors,
+        dolgozatSummary: {
+            total: dolgozatok.length,
+            submitted: dolgozatok.filter((item: any) => item.isSubmitted).length,
+        },
+        optionSelectorSummary: {
+            total: optionSelectors.length,
+            responded: optionSelectors.filter((item: any) => item.hasResponded).length,
+            selections: optionSelectors
+                .filter((item: any) => item.hasResponded)
+                .map((item: any) => ({
+                    title: item.title,
+                    choices: item.selectedOptions,
+                })),
         },
         attempts: formattedAttempts
     }));
+}
+
+export async function exportStudentProgressExcel(courseIdFilter?: string) {
+    const session = await getAuthSession();
+    if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
+        throw new Error("Unauthorized");
+    }
+
+    await connectDB();
+
+    const scopedCourseIds = await getScopedCourseIds(session);
+    const courseIds = courseIdFilter && scopedCourseIds.includes(courseIdFilter)
+        ? [courseIdFilter]
+        : scopedCourseIds;
+
+    if (courseIds.length === 0) {
+        return { success: false, error: "Nincs exportálható kurzus" };
+    }
+
+    const [students, courses, examResults, dolgozatok, optionSelectors, submissions] = await Promise.all([
+        User.find({ role: "student" }).select("name email progress subscriptionStatus").lean(),
+        Course.find({ _id: { $in: courseIds } })
+            .select("title finalExamSettings modules")
+            .populate({
+                path: "modules",
+                select: "_id title order quizSettings chapters",
+                populate: {
+                    path: "chapters",
+                    select: "_id pages",
+                    populate: { path: "pages", select: "_id" },
+                },
+            })
+            .lean(),
+        ExamResult.find({
+            completedAt: { $ne: null },
+            courseId: { $in: courseIds },
+        }).lean(),
+        Dolgozat.find({
+            courseId: { $in: courseIds },
+            isArchived: false,
+            isPublished: true,
+        })
+            .select("_id courseId title maxPoints")
+            .sort({ createdAt: 1 })
+            .lean(),
+        OptionSelector.find({
+            courseId: { $in: courseIds },
+            isArchived: false,
+            isPublished: true,
+        })
+            .select("_id courseId title allowMultiple options responses")
+            .sort({ createdAt: 1 })
+            .lean(),
+        DolgozatSubmission.find({ courseId: { $in: courseIds } }).lean(),
+    ]);
+
+    const allModuleIds = Array.from(new Set(
+        courses.flatMap((course: any) => (course.modules || []).map((module: any) => module._id.toString()))
+    ));
+    const modulesWithQuestions = await getModuleIdsWithQuestions(allModuleIds);
+
+    const courseMap = new Map(courses.map((course: any) => [course._id.toString(), course]));
+    const dolgozatByCourse = new Map<string, any[]>();
+    const optionSelectorByCourse = new Map<string, any[]>();
+
+    for (const dolgozat of dolgozatok as any[]) {
+        const key = dolgozat.courseId.toString();
+        if (!dolgozatByCourse.has(key)) dolgozatByCourse.set(key, []);
+        dolgozatByCourse.get(key)!.push(dolgozat);
+    }
+
+    for (const selector of optionSelectors as any[]) {
+        const key = selector.courseId.toString();
+        if (!optionSelectorByCourse.has(key)) optionSelectorByCourse.set(key, []);
+        optionSelectorByCourse.get(key)!.push(selector);
+    }
+
+    const submissionMap = new Map(
+        (submissions as any[]).map((submission) => [
+            `${submission.userId.toString()}-${submission.dolgozatId.toString()}`,
+            submission,
+        ])
+    );
+
+    const rows: Record<string, string | number>[] = [];
+
+    for (const student of students as any[]) {
+        const progressObj = progressObject(student.progress);
+        const studentCourseIds = Object.keys(progressObj).filter((id) => courseIds.includes(id));
+
+        for (const courseId of studentCourseIds) {
+            const course = courseMap.get(courseId);
+            if (!course) continue;
+
+            const progress = progressObj[courseId] || {};
+            const completedModules = (progress.completedModules || []).map((id: string) => id.toString());
+            const modulesRequiringExam = (course.modules || [])
+                .map((module: any) => module._id.toString())
+                .filter((id: string) => modulesWithQuestions.has(id));
+            const completedRequiredModules = completedModules.filter((id: string) =>
+                modulesWithQuestions.has(id)
+            );
+            const totalPages = (course.modules || []).reduce((sum: number, module: any) => {
+                return sum + (module.chapters || []).reduce(
+                    (chapterSum: number, chapter: any) => chapterSum + (chapter.pages?.length || 0),
+                    0
+                );
+            }, 0);
+
+            const studentExams = (examResults as any[]).filter(
+                (exam) =>
+                    exam.userId.toString() === student._id.toString() &&
+                    exam.courseId?.toString() === courseId
+            );
+            const finalExams = studentExams
+                .filter((exam) => exam.type === "final")
+                .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+            const latestFinal = finalExams[0] || null;
+            const finalPassingScore = course.finalExamSettings?.passingScore || 75;
+
+            const moduleDetails = ((course.modules || []) as any[])
+                .slice()
+                .sort((a, b) => (a.order || 0) - (b.order || 0))
+                .map((module) => {
+                    const moduleId = module._id.toString();
+                    const hasExam = modulesWithQuestions.has(moduleId);
+                    const passingScore = module.quizSettings?.passingScore || 75;
+                    const moduleAttempts = studentExams
+                        .filter((exam) => exam.type === "module" && exam.moduleId?.toString() === moduleId)
+                        .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+                    const passedAttempt = moduleAttempts.find((exam) => exam.score >= passingScore);
+                    const bestAttempt = passedAttempt || moduleAttempts[0] || null;
+                    const isManuallyPassed = (progress.manualModulePasses || []).includes(moduleId);
+                    const isPassed = completedModules.includes(moduleId);
+
+                    let status = "not_attempted";
+                    if (!hasExam) status = "no_exam";
+                    else if (isManuallyPassed) status = "manual";
+                    else if (isPassed && passedAttempt) status = "passed";
+                    else if (moduleAttempts.length > 0) status = "failed";
+                    else if (isPassed) status = "passed";
+
+                    return {
+                        title: module.title,
+                        status,
+                        bestScore: bestAttempt ? bestAttempt.score : null,
+                    };
+                });
+
+            const row: Record<string, string | number> = {
+                Név: student.name || "",
+                Email: student.email || "",
+                "Aktív profil": student.subscriptionStatus === "active" ? "Igen" : "Nem",
+                Kurzus: course.title || "",
+                "Utolsó aktivitás": formatHuDate(progress.lastViewedAt),
+                "Oldalak teljesítve": `${(progress.completedPages || []).length} / ${totalPages}`,
+                "Modulzárók teljesítve": `${completedRequiredModules.length} / ${modulesRequiringExam.length}`,
+                "Modulok részletei": buildModuleSummaryText(moduleDetails),
+                "Záróvizsga eredmény": latestFinal ? `${latestFinal.score}%` : "Nincs",
+                "Záróvizsga sikeres": latestFinal
+                    ? latestFinal.score >= finalPassingScore
+                        ? "Igen"
+                        : "Nem"
+                    : "Nincs",
+                "Záróvizsga kísérletek": finalExams.length,
+                "Beadandók beadva": "",
+                "Opcióválasztások": "",
+            };
+
+            const courseDolgozatok = dolgozatByCourse.get(courseId) || [];
+            const submittedDolgozatLabels: string[] = [];
+            for (const dolgozat of courseDolgozatok) {
+                const submission = submissionMap.get(`${student._id.toString()}-${dolgozat._id.toString()}`) || null;
+                const status = getSubmissionStatus(submission);
+                const statusLabel = STATUS_LABELS[status];
+                const source = submission?.uploadedOnBehalfBy ? " (oktató feltöltötte)" : "";
+                row[`Beadandó: ${dolgozat.title}`] = `${statusLabel}${source}`;
+                if (submission?.submittedAt) submittedDolgozatLabels.push(dolgozat.title);
+            }
+            row["Beadandók beadva"] = courseDolgozatok.length
+                ? `${submittedDolgozatLabels.length} / ${courseDolgozatok.length}`
+                : "Nincs beadandó";
+
+            const courseSelectors = optionSelectorByCourse.get(courseId) || [];
+            const respondedSelectors: string[] = [];
+            for (const selector of courseSelectors) {
+                const optionMap = new Map(
+                    (selector.options || []).map((option: any) => [normalizeObjectId(option._id), option.text])
+                );
+                const studentResponses = (selector.responses || []).filter(
+                    (response: any) => normalizeObjectId(response.studentId) === normalizeObjectId(student._id)
+                );
+                const selectedOptions = studentResponses.map(
+                    (response: any) => optionMap.get(normalizeObjectId(response.optionId)) || "Ismeretlen"
+                );
+                row[`Opció: ${selector.title}`] = selectedOptions.length ? selectedOptions.join(", ") : "Nincs válasz";
+                if (selectedOptions.length > 0) respondedSelectors.push(selector.title);
+            }
+            row["Opcióválasztások"] = courseSelectors.length
+                ? `${respondedSelectors.length} / ${courseSelectors.length}`
+                : "Nincs opcióválasztó";
+
+            rows.push(row);
+        }
+    }
+
+    rows.sort((a, b) => {
+        const courseCompare = String(a.Kurzus).localeCompare(String(b.Kurzus), "hu");
+        if (courseCompare !== 0) return courseCompare;
+        return String(a.Név).localeCompare(String(b.Név), "hu");
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Tanulói haladás");
+    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const base64 = Buffer.from(buffer).toString("base64");
+
+    const courseTitle = courseIdFilter ? courseMap.get(courseIdFilter)?.title : null;
+    const safeTitle = (courseTitle || "osszes_kurzus")
+        .replace(/[^\w\s-]/g, "")
+        .trim()
+        .slice(0, 40);
+    const filename = `${safeTitle || "tanuloi_haladas"}_export.xlsx`;
+
+    return { success: true, base64, filename };
 }

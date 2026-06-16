@@ -36,6 +36,7 @@ interface CourseSidebarProps {
   progress?: {
     completedModules?: string[];
     completedPages?: string[];
+    finalExamUnlocked?: boolean;
   };
   onLectureSelect: (lectureId: string) => void;
   onModuleExamSelect?: (moduleId: string) => void; 
@@ -52,7 +53,14 @@ export function CourseSidebar({
 }: CourseSidebarProps) {
     const completedModules = progress.completedModules || [];
     const completedPages = progress.completedPages || [];
-    const allModulesCompleted = modules.every((m: any) => completedModules.includes(m._id.toString()));
+    const finalExamUnlocked = !!progress.finalExamUnlocked;
+    const allModulesCompleted =
+      finalExamUnlocked ||
+      modules.every((m: any) => {
+        const moduleId = m._id.toString();
+        if (m.hasExam === false) return true;
+        return completedModules.includes(moduleId);
+      });
   const [pendingDolgozat, setPendingDolgozat] = useState({ pendingCount: 0, hasUrgent: false });
   const [pendingOptions, setPendingOptions] = useState({ pendingCount: 0 });
 
@@ -120,7 +128,7 @@ export function CourseSidebar({
                   ))}
                   
                   {/* Module Exam Button */}
-                  {onModuleExamSelect && (
+                  {onModuleExamSelect && module.hasExam !== false && (
                       <button 
                         onClick={() => onModuleExamSelect(module._id)}
                         className={cn(
@@ -196,7 +204,11 @@ export function CourseSidebar({
                         Záróvizsga
                     </div>
                     {!allModulesCompleted && (
-                        <span className="text-[10px] font-normal opacity-80 italic">Teljesítsd az összes modult a kezdéshez!</span>
+                        <span className="text-[10px] font-normal opacity-80 italic">
+                          {finalExamUnlocked
+                            ? "Oktatói engedély — elindítható"
+                            : "Teljesítsd az összes modulzáró vizsgát a kezdéshez!"}
+                        </span>
                     )}
                 </button>
            </div>

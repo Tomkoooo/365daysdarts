@@ -10,6 +10,7 @@ import { getAuthSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import User from "@/models/User";
 import { notifyStudentsAboutNewCourse } from "@/lib/email-notifications";
+import { getModuleIdsWithQuestions } from "@/lib/module-exams";
 
 export async function getCourseWithContent(courseId: string) {
   const session = await getAuthSession();
@@ -45,8 +46,18 @@ export async function getCourseWithContent(courseId: string) {
       return null;
   }
 
-  // Convert ObjectIds to strings for serialization to client components
-  return JSON.parse(JSON.stringify(course));
+  const moduleIds = ((course as any).modules || []).map((m: any) => m._id.toString());
+  const modulesWithQuestions = await getModuleIdsWithQuestions(moduleIds);
+
+  const enriched = {
+    ...course,
+    modules: ((course as any).modules || []).map((m: any) => ({
+      ...m,
+      hasExam: modulesWithQuestions.has(m._id.toString()),
+    })),
+  };
+
+  return JSON.parse(JSON.stringify(enriched));
 }
 
 export async function getAllCourses(onlyPublished: boolean = true) {
