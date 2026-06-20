@@ -22,11 +22,11 @@ export default function BusinessDashboard() {
     loadStats()
   }, [])
 
-  if (!stats) return <div className="p-8">Statisztikák betöltése...</div>
+  if (!stats) return <div className="p-4 md:p-8">Statisztikák betöltése...</div>
 
   return (
-    <div className="container mx-auto p-8 space-y-8">
-      <h1 className="text-3xl font-bold">Üzleti Betekintés</h1>
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8 max-w-full">
+      <h1 className="text-2xl sm:text-3xl font-bold">Üzleti Betekintés</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
@@ -44,9 +44,33 @@ export default function BusinessDashboard() {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Legutóbbi Tanulók</h2>
-        <Card>
+        <h2 className="text-lg sm:text-xl font-semibold">Legutóbbi Tanulók</h2>
+
+        <div className="md:hidden space-y-3">
+          {stats.students.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center text-muted-foreground">
+                Nem található tanuló.
+              </CardContent>
+            </Card>
+          ) : (
+            stats.students.map((s: any) => (
+              <Card key={s._id}>
+                <CardContent className="p-4 space-y-2">
+                  <div className="font-medium">{s.name}</div>
+                  <div className="text-sm text-muted-foreground break-all">{s.email}</div>
+                  <Badge variant={s.subscriptionStatus === "active" ? "default" : "secondary"}>
+                    {s.subscriptionStatus === "active" ? "Aktív" : "Inaktív"}
+                  </Badge>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+
+        <Card className="hidden md:block">
             <CardContent className="p-0">
+                <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -75,6 +99,7 @@ export default function BusinessDashboard() {
                         )}
                     </TableBody>
                 </Table>
+                </div>
             </CardContent>
         </Card>
       </div>

@@ -33,6 +33,7 @@ export function StudentStatsTable() {
     const [sortKey, setSortKey] = useState<SortKey>("lastViewedAt")
     const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
     const [exporting, setExporting] = useState(false)
+    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
 
     useEffect(() => {
         loadStats()
@@ -174,29 +175,52 @@ export function StudentStatsTable() {
         }
     }
 
-    async function handleExportExcel() {
+    async function downloadExportResult(result: { success?: boolean; base64?: string; filename?: string; error?: string }) {
+        if (!result.success || !result.base64) {
+            alert(result.error || "Export hiba")
+            return
+        }
+        const blob = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0))
+        const url = URL.createObjectURL(new Blob([blob], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }))
+        const a = document.createElement("a")
+        a.href = url
+        a.download = result.filename || "tanuloi_haladas_export.xlsx"
+        a.click()
+        URL.revokeObjectURL(url)
+    }
+
+    async function handleExportExcel(studentIds?: string[]) {
         setExporting(true)
         try {
-            const result = await exportStudentProgressExcel(
-                courseFilter === "all" ? undefined : courseFilter
-            )
-            if (!result.success || !result.base64) {
-                alert(result.error || "Export hiba")
-                return
-            }
-            const blob = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0))
-            const url = URL.createObjectURL(new Blob([blob], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }))
-            const a = document.createElement("a")
-            a.href = url
-            a.download = result.filename || "tanuloi_haladas_export.xlsx"
-            a.click()
-            URL.revokeObjectURL(url)
+            const result = await exportStudentProgressExcel({
+                courseId: courseFilter === "all" ? undefined : courseFilter,
+                studentIds,
+            })
+            await downloadExportResult(result)
         } catch (e) {
             console.error("Failed to export", e)
             alert("Nem sikerült exportálni az adatokat.")
         } finally {
             setExporting(false)
         }
+    }
+
+    function toggleStudentSelection(studentId: string) {
+        setSelectedStudentIds((prev) =>
+            prev.includes(studentId)
+                ? prev.filter((id) => id !== studentId)
+                : [...prev, studentId]
+        )
+    }
+
+    function toggleAllVisibleStudents(visibleStudentIds: string[]) {
+        setSelectedStudentIds((prev) => {
+            const allSelected = visibleStudentIds.every((id) => prev.includes(id))
+            if (allSelected) {
+                return prev.filter((id) => !visibleStudentIds.includes(id))
+            }
+            return Array.from(new Set([...prev, ...visibleStudentIds]))
+        })
     }
 
     function handleSortToggle(key: SortKey) {
@@ -284,16 +308,24 @@ export function StudentStatsTable() {
         })
     }, [courseFilter, searchText, sortDirection, sortKey, stats])
 
+    const visibleStudentIds = useMemo(() => {
+        return Array.from(new Set(filteredAndSortedStats.map((student) => student.studentId).filter(Boolean)))
+    }, [filteredAndSortedStats])
+
+    const allVisibleSelected = visibleStudentIds.length > 0 &&
+        visibleStudentIds.every((id) => selectedStudentIds.includes(id))
+
     if (loading) return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
 
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center gap-3 flex-wrap">
                 <h3 className="text-lg font-medium">Tanulói Teljesítmény</h3>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                     <Button
                         size="sm"
                         variant="outline"
+                        className="min-h-10 flex-1 sm:flex-none"
                         onClick={() => { void handleExportExcel() }}
                         disabled={exporting}
                     >
@@ -302,13 +334,34 @@ export function StudentStatsTable() {
                         ) : (
                             <FileSpreadsheet className="h-4 w-4 mr-2" />
                         )}
-                        Excel export
+                        <span className="hidden sm:inline">Excel export (mind)</span>
+                        <span className="sm:hidden">Export (mind)</span>
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => { void loadStats(); }}>
+                    <Button
+                        size="sm"
+                        variant="default"
+                        className="min-h-10 flex-1 sm:flex-none"
+                        onClick={() => { void handleExportExcel(selectedStudentIds) }}
+                        disabled={exporting || selectedStudentIds.length === 0}
+                    >
+                        {exporting ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                            <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        )}
+                        Kijelöltek ({selectedStudentIds.length})
+                    </Button>
+                    <Button size="sm" variant="outline" className="min-h-10" onClick={() => { void loadStats(); }}>
                         <RefreshCw className="h-4 w-4 mr-2" /> Frissítés
                     </Button>
                 </div>
             </div>
+
+            {selectedStudentIds.length > 0 && (
+                <div className="text-sm text-muted-foreground">
+                    {selectedStudentIds.length} tanuló kijelölve. A kijelöltek exportja az összes kurzusuk adatait és aktivitás naplóját egy fájlba gyűjti.
+                </div>
+            )}
 
             <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
                 <div className="flex flex-col sm:flex-row gap-3 sm:items-center flex-1">
@@ -331,11 +384,12 @@ export function StudentStatsTable() {
                         ))}
                     </select>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                     <Button
                         type="button"
                         size="sm"
                         variant="outline"
+                        className="min-h-10 flex-1 sm:flex-none"
                         onClick={() => {
                             setSortKey("pagesProgressRatio")
                             setSortDirection("desc")
@@ -347,6 +401,7 @@ export function StudentStatsTable() {
                         type="button"
                         size="sm"
                         variant="outline"
+                        className="min-h-10 flex-1 sm:flex-none"
                         onClick={() => {
                             setSortKey("pagesProgressRatio")
                             setSortDirection("asc")
@@ -357,10 +412,87 @@ export function StudentStatsTable() {
                 </div>
             </div>
 
-            <div className="border rounded-md">
+            <div className="md:hidden space-y-3">
+                {filteredAndSortedStats.length === 0 ? (
+                    <div className="border rounded-md p-6 text-center text-muted-foreground">
+                        Nem található tanulói adat.
+                    </div>
+                ) : (
+                    filteredAndSortedStats.map((student) => (
+                        <div key={student.id} className="border rounded-lg p-4 space-y-3 bg-background">
+                            <div className="flex items-start gap-3">
+                                <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border mt-1 shrink-0"
+                                    checked={selectedStudentIds.includes(student.studentId)}
+                                    onChange={() => toggleStudentSelection(student.studentId)}
+                                    aria-label={`${student.name} kijelölése`}
+                                />
+                                <div className="min-w-0 flex-1">
+                                    <div className="font-medium truncate">{student.name}</div>
+                                    <div className="text-sm text-muted-foreground break-all">{student.email}</div>
+                                    <div className="text-sm mt-1">{student.courseTitle}</div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                    <span className="text-muted-foreground">Oldalak: </span>
+                                    {student.completedPagesCount} / {student.totalPages}
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground">Modulok: </span>
+                                    {student.completedRequiredModules ?? student.completedModulesCount} / {student.modulesRequiringExam ?? student.totalModules}
+                                </div>
+                                <div className="col-span-2 text-xs text-muted-foreground">
+                                    Utolsó aktivitás: {formatDate(student.lastViewedAt)}
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground">Záróvizsga: </span>
+                                    {student.finalExamScore !== null ? `${student.finalExamScore}%` : "Nincs"}
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground">Kísérletek: </span>
+                                    {student.finalExamAttempts}
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 pt-1">
+                                {!student.finalExamPassed && student.courseId && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="min-h-10 text-xs border-dashed flex-1 sm:flex-none"
+                                        onClick={() => handleGrantRetry(student.studentId, student.courseId)}
+                                    >
+                                        <PlusCircle className="h-3 w-3 mr-1" /> Újra
+                                    </Button>
+                                )}
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="min-h-10 text-xs flex-1 sm:flex-none"
+                                    onClick={() => handleOpenDetails(student.studentId, student.courseId)}
+                                >
+                                    Részletek
+                                </Button>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            <div className="hidden md:block border rounded-md overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-10">
+                                <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border"
+                                    checked={allVisibleSelected}
+                                    onChange={() => toggleAllVisibleStudents(visibleStudentIds)}
+                                    aria-label="Összes látható tanuló kijelölése"
+                                />
+                            </TableHead>
                             <TableHead>
                                 <button type="button" onClick={() => handleSortToggle("name")} className="inline-flex items-center gap-1.5">
                                     Tanuló Neve {renderSortIcon("name")}
@@ -407,13 +539,22 @@ export function StudentStatsTable() {
                     <TableBody>
                         {filteredAndSortedStats.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={9} className="text-center text-muted-foreground h-24">
+                                <TableCell colSpan={10} className="text-center text-muted-foreground h-24">
                                     Nem található tanulói adat.
                                 </TableCell>
                             </TableRow>
                         )}
                         {filteredAndSortedStats.map((student) => (
                             <TableRow key={student.id}>
+                                <TableCell>
+                                    <input
+                                        type="checkbox"
+                                        className="h-4 w-4 rounded border"
+                                        checked={selectedStudentIds.includes(student.studentId)}
+                                        onChange={() => toggleStudentSelection(student.studentId)}
+                                        aria-label={`${student.name} kijelölése`}
+                                    />
+                                </TableCell>
                                 <TableCell className="font-medium">{student.name}</TableCell>
                                 <TableCell className="text-muted-foreground">{student.email}</TableCell>
                                 <TableCell>{student.courseTitle}</TableCell>
@@ -466,7 +607,7 @@ export function StudentStatsTable() {
             </div>
 
             <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Tanuló haladás részletei</DialogTitle>
                         <DialogDescription>

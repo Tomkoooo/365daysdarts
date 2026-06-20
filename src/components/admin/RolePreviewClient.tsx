@@ -13,9 +13,9 @@ export function RolePreviewClient({ role }: { role: string }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/10">
+    <div className="min-h-screen flex flex-col bg-muted/10 overflow-x-hidden">
       <RolePreviewBanner role={role} />
-      <main className="flex-1">
+      <main className="flex-1 min-w-0 overflow-x-hidden">
         {role === "student" && <StudentDashboard />}
         {role === "lecturer" && <LecturerDashboard />}
         {role === "business" && <BusinessDashboard />}

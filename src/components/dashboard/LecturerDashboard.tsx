@@ -35,14 +35,14 @@ export default function LecturerDashboard() {
   }, [])
 
   return (
-    <div className="container mx-auto p-8 space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Oktatói Irányítópult</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setMediaManagerOpen(true)} className="gap-2">
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8 max-w-full">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <h1 className="text-2xl sm:text-3xl font-bold">Oktatói Irányítópult</h1>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={() => setMediaManagerOpen(true)} className="gap-2 flex-1 sm:flex-none min-h-10">
             <BookOpen className="h-4 w-4" /> Médiatár Kezelése
           </Button>
-          <Button asChild>
+          <Button asChild className="flex-1 sm:flex-none min-h-10">
             <Link href="/lecturer/courses/new">Kurzus Létrehozása</Link>
           </Button>
         </div>
@@ -73,14 +73,15 @@ export default function LecturerDashboard() {
       </div>
 
       <Tabs defaultValue="courses" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="courses">Kurzusaim</TabsTrigger>
-          <TabsTrigger value="students">Tanulók Haladása</TabsTrigger>
-          <TabsTrigger value="results">Vizsgaeredmények</TabsTrigger>
+        <TabsList className="w-full h-auto flex flex-wrap justify-start gap-1 p-1">
+          <TabsTrigger value="courses" className="min-h-10">Kurzusaim</TabsTrigger>
+          <TabsTrigger value="students" className="min-h-10">Tanulók Haladása</TabsTrigger>
+          <TabsTrigger value="results" className="min-h-10">Vizsgaeredmények</TabsTrigger>
         </TabsList>
         <TabsContent value="courses" className="space-y-4">
              <Card>
                 <CardContent className="p-0">
+                    <div className="overflow-x-auto">
                     <Table>
                     <TableHeader>
                         <TableRow>
@@ -109,6 +110,7 @@ export default function LecturerDashboard() {
                         )}
                     </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
         </TabsContent>
@@ -118,6 +120,7 @@ export default function LecturerDashboard() {
         <TabsContent value="results" className="space-y-4">
           <Card>
             <CardContent className="p-0">
+               <div className="overflow-x-auto">
                <Table>
                  <TableHeader>
                    <TableRow>
@@ -144,6 +147,7 @@ export default function LecturerDashboard() {
                    )}
                  </TableBody>
                </Table>
+               </div>
             </CardContent>
           </Card>
         </TabsContent>

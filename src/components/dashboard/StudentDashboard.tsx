@@ -42,7 +42,7 @@ export default function StudentDashboard() {
 
   if (!hasAccess) {
     return (
-      <div className="container mx-auto p-8 flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[60vh] space-y-6 max-w-full">
         <Card className="max-w-md w-full border-primary/20 bg-primary/5">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Feldolgozás alatt...</CardTitle>
@@ -58,10 +58,10 @@ export default function StudentDashboard() {
     )
   }
   return (
-    <div className="container mx-auto p-8 space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Tananyagaim</h1>
-        <Button asChild>
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8 max-w-full">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl sm:text-3xl font-bold">Tananyagaim</h1>
+        <Button asChild className="w-full sm:w-auto min-h-10">
           <Link href="/courses">Kurzusok Böngészése</Link>
         </Button>
       </div>

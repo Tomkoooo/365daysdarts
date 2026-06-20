@@ -599,6 +599,284 @@ function buildModuleSummaryText(modules: Array<{ title: string; status: string; 
         .join("; ");
 }
 
+type ActivityEventRecord = {
+    timestamp: Date;
+    studentName: string;
+    studentEmail: string;
+    courseTitle: string;
+    eventType: string;
+    description: string;
+    details: string;
+};
+
+function buildModuleDetailsForStudent(
+    course: any,
+    progress: any,
+    studentExams: any[],
+    modulesWithQuestions: Set<string>
+) {
+    const completedModules = (progress.completedModules || []).map((id: string) => id.toString());
+
+    return ((course.modules || []) as any[])
+        .slice()
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map((module) => {
+            const moduleId = module._id.toString();
+            const hasExam = modulesWithQuestions.has(moduleId);
+            const passingScore = module.quizSettings?.passingScore || 75;
+            const moduleAttempts = studentExams
+                .filter((exam) => exam.type === "module" && normalizeObjectId(exam.moduleId) === moduleId)
+                .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime());
+            const passedAttempt = moduleAttempts.find((exam) => exam.score >= passingScore);
+            const bestAttempt = passedAttempt || moduleAttempts[0] || null;
+            const isManuallyPassed = (progress.manualModulePasses || []).includes(moduleId);
+            const isPassed = completedModules.includes(moduleId);
+
+            let status = "not_attempted";
+            if (!hasExam) status = "no_exam";
+            else if (isManuallyPassed) status = "manual";
+            else if (isPassed && passedAttempt) status = "passed";
+            else if (moduleAttempts.length > 0) status = "failed";
+            else if (isPassed) status = "passed";
+
+            return {
+                title: module.title,
+                status,
+                bestScore: bestAttempt ? bestAttempt.score : null,
+            };
+        });
+}
+
+function buildStudentSummaryRow(
+    student: any,
+    course: any,
+    progress: any,
+    studentExams: any[],
+    modulesWithQuestions: Set<string>,
+    courseDolgozatok: any[],
+    courseSelectors: any[],
+    submissionMap: Map<string, any>
+) {
+    const completedModules = (progress.completedModules || []).map((id: string) => id.toString());
+    const modulesRequiringExam = (course.modules || [])
+        .map((module: any) => module._id.toString())
+        .filter((id: string) => modulesWithQuestions.has(id));
+    const completedRequiredModules = completedModules.filter((id: string) =>
+        modulesWithQuestions.has(id)
+    );
+    const totalPages = (course.modules || []).reduce((sum: number, module: any) => {
+        return sum + (module.chapters || []).reduce(
+            (chapterSum: number, chapter: any) => chapterSum + (chapter.pages?.length || 0),
+            0
+        );
+    }, 0);
+
+    const finalExams = studentExams
+        .filter((exam) => exam.type === "final" && exam.completedAt)
+        .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+    const latestFinal = finalExams[0] || null;
+    const finalPassingScore = course.finalExamSettings?.passingScore || 75;
+    const moduleDetails = buildModuleDetailsForStudent(course, progress, studentExams, modulesWithQuestions);
+
+    const row: Record<string, string | number> = {
+        Név: student.name || "",
+        Email: student.email || "",
+        "Aktív profil": student.subscriptionStatus === "active" ? "Igen" : "Nem",
+        Kurzus: course.title || "",
+        "Utolsó aktivitás": formatHuDate(progress.lastViewedAt),
+        "Oldalak teljesítve": `${(progress.completedPages || []).length} / ${totalPages}`,
+        "Modulzárók teljesítve": `${completedRequiredModules.length} / ${modulesRequiringExam.length}`,
+        "Modulok részletei": buildModuleSummaryText(moduleDetails),
+        "Záróvizsga eredmény": latestFinal ? `${latestFinal.score}%` : "Nincs",
+        "Záróvizsga sikeres": latestFinal
+            ? latestFinal.score >= finalPassingScore
+                ? "Igen"
+                : "Nem"
+            : "Nincs",
+        "Záróvizsga kísérletek": finalExams.length,
+        "Beadandók beadva": "",
+        "Opcióválasztások": "",
+    };
+
+    const submittedDolgozatLabels: string[] = [];
+    for (const dolgozat of courseDolgozatok) {
+        const submission = submissionMap.get(`${normalizeObjectId(student._id)}-${normalizeObjectId(dolgozat._id)}`) || null;
+        const status = getSubmissionStatus(submission);
+        const statusLabel = STATUS_LABELS[status];
+        const source = submission?.uploadedOnBehalfBy ? " (oktató feltöltötte)" : "";
+        row[`Beadandó: ${dolgozat.title}`] = `${statusLabel}${source}`;
+        if (submission?.submittedAt) submittedDolgozatLabels.push(dolgozat.title);
+    }
+    row["Beadandók beadva"] = courseDolgozatok.length
+        ? `${submittedDolgozatLabels.length} / ${courseDolgozatok.length}`
+        : "Nincs beadandó";
+
+    const respondedSelectors: string[] = [];
+    for (const selector of courseSelectors) {
+        const optionMap = new Map(
+            (selector.options || []).map((option: any) => [normalizeObjectId(option._id), option.text])
+        );
+        const studentResponses = (selector.responses || []).filter(
+            (response: any) => normalizeObjectId(response.studentId) === normalizeObjectId(student._id)
+        );
+        const selectedOptions = studentResponses.map(
+            (response: any) => optionMap.get(normalizeObjectId(response.optionId)) || "Ismeretlen"
+        );
+        row[`Opció: ${selector.title}`] = selectedOptions.length ? selectedOptions.join(", ") : "Nincs válasz";
+        if (selectedOptions.length > 0) respondedSelectors.push(selector.title);
+    }
+    row["Opcióválasztások"] = courseSelectors.length
+        ? `${respondedSelectors.length} / ${courseSelectors.length}`
+        : "Nincs opcióválasztó";
+
+    return row;
+}
+
+function buildStudentActivityEvents(
+    student: any,
+    course: any,
+    progress: any,
+    studentExams: any[],
+    courseDolgozatok: any[],
+    courseSelectors: any[],
+    submissionMap: Map<string, any>,
+    moduleTitleById: Map<string, string>
+): ActivityEventRecord[] {
+    const events: ActivityEventRecord[] = [];
+    const studentName = student.name || "";
+    const studentEmail = student.email || "";
+    const courseTitle = course.title || "";
+
+    if (progress.lastViewedAt) {
+        events.push({
+            timestamp: new Date(progress.lastViewedAt),
+            studentName,
+            studentEmail,
+            courseTitle,
+            eventType: "Tananyag aktivitás",
+            description: "Utolsó tananyag megtekintés",
+            details: `${(progress.completedPages || []).length} oldal megtekintve`,
+        });
+    }
+
+    for (const exam of studentExams) {
+        const moduleTitle = exam.moduleId
+            ? moduleTitleById.get(normalizeObjectId(exam.moduleId)) || "Ismeretlen modul"
+            : null;
+        const examLabel =
+            exam.type === "final"
+                ? "Záróvizsga"
+                : exam.type === "module"
+                    ? `Modulzáró: ${moduleTitle}`
+                    : "Gyakorló vizsga";
+
+        if (exam.startedAt) {
+            events.push({
+                timestamp: new Date(exam.startedAt),
+                studentName,
+                studentEmail,
+                courseTitle,
+                eventType: "Vizsga indítva",
+                description: examLabel,
+                details: exam.completedAt ? "Befejezve" : "Folyamatban / megszakítva",
+            });
+        }
+
+        if (exam.completedAt) {
+            events.push({
+                timestamp: new Date(exam.completedAt),
+                studentName,
+                studentEmail,
+                courseTitle,
+                eventType: "Vizsga befejezve",
+                description: examLabel,
+                details: `${exam.score}% (${exam.totalQuestions} kérdés)`,
+            });
+        }
+    }
+
+    for (const dolgozat of courseDolgozatok) {
+        const submission = submissionMap.get(`${normalizeObjectId(student._id)}-${normalizeObjectId(dolgozat._id)}`) || null;
+        if (!submission) continue;
+
+        if (submission.uploadedOnBehalfAt) {
+            events.push({
+                timestamp: new Date(submission.uploadedOnBehalfAt),
+                studentName,
+                studentEmail,
+                courseTitle,
+                eventType: "Beadandó feltöltve",
+                description: dolgozat.title,
+                details: "Oktató/admin feltöltötte",
+            });
+        }
+
+        if (submission.submittedAt) {
+            events.push({
+                timestamp: new Date(submission.submittedAt),
+                studentName,
+                studentEmail,
+                courseTitle,
+                eventType: submission.isLate ? "Beadandó későn beadva" : "Beadandó beadva",
+                description: dolgozat.title,
+                details: submission.uploadedOnBehalfBy ? "Oktatói feltöltés után beadva" : "Tanuló által beadva",
+            });
+        }
+
+        if (submission.gradedAt) {
+            events.push({
+                timestamp: new Date(submission.gradedAt),
+                studentName,
+                studentEmail,
+                courseTitle,
+                eventType: "Beadandó értékelve",
+                description: dolgozat.title,
+                details: submission.points != null
+                    ? `${submission.points}${dolgozat.maxPoints ? ` / ${dolgozat.maxPoints}` : ""} pont`
+                    : "Értékelve",
+            });
+        }
+    }
+
+    for (const selector of courseSelectors) {
+        const optionMap = new Map<string, string>(
+            (selector.options || []).map((option: any) => [normalizeObjectId(option._id), String(option.text || "")])
+        );
+        const studentResponses = (selector.responses || []).filter(
+            (response: any) => normalizeObjectId(response.studentId) === normalizeObjectId(student._id)
+        );
+
+        for (const response of studentResponses) {
+            const optionText = optionMap.get(normalizeObjectId(response.optionId)) || "Ismeretlen";
+            events.push({
+                timestamp: response.createdAt ? new Date(response.createdAt) : new Date(0),
+                studentName,
+                studentEmail,
+                courseTitle,
+                eventType: "Opcióválasztás",
+                description: selector.title,
+                details: optionText,
+            });
+        }
+    }
+
+    return events;
+}
+
+function activityEventsToRows(events: ActivityEventRecord[]) {
+    return events
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .map((event) => ({
+            "Dátum": formatHuDate(event.timestamp),
+            Név: event.studentName,
+            Email: event.studentEmail,
+            Kurzus: event.courseTitle,
+            "Esemény": event.eventType,
+            Leírás: event.description,
+            Részletek: event.details,
+        }));
+}
+
 export async function getLecturerExamResults() {
     const session = await getAuthSession();
     if (session?.user?.role !== 'lecturer' && session?.user?.role !== 'admin') {
@@ -1052,13 +1330,21 @@ export async function getStudentExamDetails(studentId: string, courseId: string)
     }));
 }
 
-export async function exportStudentProgressExcel(courseIdFilter?: string) {
+export async function exportStudentProgressExcel(options?: {
+    courseId?: string;
+    studentIds?: string[];
+}) {
     const session = await getAuthSession();
     if (session?.user?.role !== "lecturer" && session?.user?.role !== "admin") {
         throw new Error("Unauthorized");
     }
 
     await connectDB();
+
+    const courseIdFilter = options?.courseId;
+    const studentIdFilter = options?.studentIds?.length
+        ? Array.from(new Set(options.studentIds.map((id) => normalizeObjectId(id))))
+        : undefined;
 
     const scopedCourseIds = await getScopedCourseIds(session);
     const courseIds = courseIdFilter && scopedCourseIds.includes(courseIdFilter)
@@ -1083,10 +1369,7 @@ export async function exportStudentProgressExcel(courseIdFilter?: string) {
                 },
             })
             .lean(),
-        ExamResult.find({
-            completedAt: { $ne: null },
-            courseId: { $in: courseIds },
-        }).lean(),
+        ExamResult.find({ courseId: { $in: courseIds } }).lean(),
         Dolgozat.find({
             courseId: { $in: courseIds },
             isArchived: false,
@@ -1106,6 +1389,17 @@ export async function exportStudentProgressExcel(courseIdFilter?: string) {
         DolgozatSubmission.find({ courseId: { $in: courseIds } }).lean(),
     ]);
 
+    let filteredStudents = students as any[];
+    if (studentIdFilter?.length) {
+        const allowedIds = new Set(studentIdFilter);
+        filteredStudents = filteredStudents.filter((student) =>
+            allowedIds.has(normalizeObjectId(student._id))
+        );
+        if (filteredStudents.length === 0) {
+            return { success: false, error: "A kijelölt tanulók nem találhatók" };
+        }
+    }
+
     const allModuleIds = Array.from(new Set(
         courses.flatMap((course: any) => (course.modules || []).map((module: any) => module._id.toString()))
     ));
@@ -1114,6 +1408,13 @@ export async function exportStudentProgressExcel(courseIdFilter?: string) {
     const courseMap = new Map(courses.map((course: any) => [course._id.toString(), course]));
     const dolgozatByCourse = new Map<string, any[]>();
     const optionSelectorByCourse = new Map<string, any[]>();
+    const moduleTitleById = new Map<string, string>();
+
+    for (const course of courses as any[]) {
+        for (const module of course.modules || []) {
+            moduleTitleById.set(module._id.toString(), module.title);
+        }
+    }
 
     for (const dolgozat of dolgozatok as any[]) {
         const key = dolgozat.courseId.toString();
@@ -1129,14 +1430,15 @@ export async function exportStudentProgressExcel(courseIdFilter?: string) {
 
     const submissionMap = new Map(
         (submissions as any[]).map((submission) => [
-            `${submission.userId.toString()}-${submission.dolgozatId.toString()}`,
+            `${normalizeObjectId(submission.userId)}-${normalizeObjectId(submission.dolgozatId)}`,
             submission,
         ])
     );
 
-    const rows: Record<string, string | number>[] = [];
+    const summaryRows: Record<string, string | number>[] = [];
+    const activityEvents: ActivityEventRecord[] = [];
 
-    for (const student of students as any[]) {
+    for (const student of filteredStudents) {
         const progressObj = progressObject(student.progress);
         const studentCourseIds = Object.keys(progressObj).filter((id) => courseIds.includes(id));
 
@@ -1145,135 +1447,62 @@ export async function exportStudentProgressExcel(courseIdFilter?: string) {
             if (!course) continue;
 
             const progress = progressObj[courseId] || {};
-            const completedModules = (progress.completedModules || []).map((id: string) => id.toString());
-            const modulesRequiringExam = (course.modules || [])
-                .map((module: any) => module._id.toString())
-                .filter((id: string) => modulesWithQuestions.has(id));
-            const completedRequiredModules = completedModules.filter((id: string) =>
-                modulesWithQuestions.has(id)
-            );
-            const totalPages = (course.modules || []).reduce((sum: number, module: any) => {
-                return sum + (module.chapters || []).reduce(
-                    (chapterSum: number, chapter: any) => chapterSum + (chapter.pages?.length || 0),
-                    0
-                );
-            }, 0);
-
             const studentExams = (examResults as any[]).filter(
                 (exam) =>
-                    exam.userId.toString() === student._id.toString() &&
-                    exam.courseId?.toString() === courseId
+                    normalizeObjectId(exam.userId) === normalizeObjectId(student._id) &&
+                    normalizeObjectId(exam.courseId) === courseId
             );
-            const finalExams = studentExams
-                .filter((exam) => exam.type === "final")
-                .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
-            const latestFinal = finalExams[0] || null;
-            const finalPassingScore = course.finalExamSettings?.passingScore || 75;
-
-            const moduleDetails = ((course.modules || []) as any[])
-                .slice()
-                .sort((a, b) => (a.order || 0) - (b.order || 0))
-                .map((module) => {
-                    const moduleId = module._id.toString();
-                    const hasExam = modulesWithQuestions.has(moduleId);
-                    const passingScore = module.quizSettings?.passingScore || 75;
-                    const moduleAttempts = studentExams
-                        .filter((exam) => exam.type === "module" && exam.moduleId?.toString() === moduleId)
-                        .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
-                    const passedAttempt = moduleAttempts.find((exam) => exam.score >= passingScore);
-                    const bestAttempt = passedAttempt || moduleAttempts[0] || null;
-                    const isManuallyPassed = (progress.manualModulePasses || []).includes(moduleId);
-                    const isPassed = completedModules.includes(moduleId);
-
-                    let status = "not_attempted";
-                    if (!hasExam) status = "no_exam";
-                    else if (isManuallyPassed) status = "manual";
-                    else if (isPassed && passedAttempt) status = "passed";
-                    else if (moduleAttempts.length > 0) status = "failed";
-                    else if (isPassed) status = "passed";
-
-                    return {
-                        title: module.title,
-                        status,
-                        bestScore: bestAttempt ? bestAttempt.score : null,
-                    };
-                });
-
-            const row: Record<string, string | number> = {
-                Név: student.name || "",
-                Email: student.email || "",
-                "Aktív profil": student.subscriptionStatus === "active" ? "Igen" : "Nem",
-                Kurzus: course.title || "",
-                "Utolsó aktivitás": formatHuDate(progress.lastViewedAt),
-                "Oldalak teljesítve": `${(progress.completedPages || []).length} / ${totalPages}`,
-                "Modulzárók teljesítve": `${completedRequiredModules.length} / ${modulesRequiringExam.length}`,
-                "Modulok részletei": buildModuleSummaryText(moduleDetails),
-                "Záróvizsga eredmény": latestFinal ? `${latestFinal.score}%` : "Nincs",
-                "Záróvizsga sikeres": latestFinal
-                    ? latestFinal.score >= finalPassingScore
-                        ? "Igen"
-                        : "Nem"
-                    : "Nincs",
-                "Záróvizsga kísérletek": finalExams.length,
-                "Beadandók beadva": "",
-                "Opcióválasztások": "",
-            };
-
             const courseDolgozatok = dolgozatByCourse.get(courseId) || [];
-            const submittedDolgozatLabels: string[] = [];
-            for (const dolgozat of courseDolgozatok) {
-                const submission = submissionMap.get(`${student._id.toString()}-${dolgozat._id.toString()}`) || null;
-                const status = getSubmissionStatus(submission);
-                const statusLabel = STATUS_LABELS[status];
-                const source = submission?.uploadedOnBehalfBy ? " (oktató feltöltötte)" : "";
-                row[`Beadandó: ${dolgozat.title}`] = `${statusLabel}${source}`;
-                if (submission?.submittedAt) submittedDolgozatLabels.push(dolgozat.title);
-            }
-            row["Beadandók beadva"] = courseDolgozatok.length
-                ? `${submittedDolgozatLabels.length} / ${courseDolgozatok.length}`
-                : "Nincs beadandó";
-
             const courseSelectors = optionSelectorByCourse.get(courseId) || [];
-            const respondedSelectors: string[] = [];
-            for (const selector of courseSelectors) {
-                const optionMap = new Map(
-                    (selector.options || []).map((option: any) => [normalizeObjectId(option._id), option.text])
-                );
-                const studentResponses = (selector.responses || []).filter(
-                    (response: any) => normalizeObjectId(response.studentId) === normalizeObjectId(student._id)
-                );
-                const selectedOptions = studentResponses.map(
-                    (response: any) => optionMap.get(normalizeObjectId(response.optionId)) || "Ismeretlen"
-                );
-                row[`Opció: ${selector.title}`] = selectedOptions.length ? selectedOptions.join(", ") : "Nincs válasz";
-                if (selectedOptions.length > 0) respondedSelectors.push(selector.title);
-            }
-            row["Opcióválasztások"] = courseSelectors.length
-                ? `${respondedSelectors.length} / ${courseSelectors.length}`
-                : "Nincs opcióválasztó";
 
-            rows.push(row);
+            summaryRows.push(
+                buildStudentSummaryRow(
+                    student,
+                    course,
+                    progress,
+                    studentExams,
+                    modulesWithQuestions,
+                    courseDolgozatok,
+                    courseSelectors,
+                    submissionMap
+                )
+            );
+
+            activityEvents.push(
+                ...buildStudentActivityEvents(
+                    student,
+                    course,
+                    progress,
+                    studentExams,
+                    courseDolgozatok,
+                    courseSelectors,
+                    submissionMap,
+                    moduleTitleById
+                )
+            );
         }
     }
 
-    rows.sort((a, b) => {
+    summaryRows.sort((a, b) => {
         const courseCompare = String(a.Kurzus).localeCompare(String(b.Kurzus), "hu");
         if (courseCompare !== 0) return courseCompare;
         return String(a.Név).localeCompare(String(b.Név), "hu");
     });
 
-    const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Tanulói haladás");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), "Tanulói haladás");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(activityEventsToRows(activityEvents)), "Aktivitás napló");
+
     const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
     const base64 = Buffer.from(buffer).toString("base64");
 
     const courseTitle = courseIdFilter ? courseMap.get(courseIdFilter)?.title : null;
+    const selectionSuffix = studentIdFilter?.length ? `_${studentIdFilter.length}_tanulo` : "";
     const safeTitle = (courseTitle || "osszes_kurzus")
         .replace(/[^\w\s-]/g, "")
         .trim()
         .slice(0, 40);
-    const filename = `${safeTitle || "tanuloi_haladas"}_export.xlsx`;
+    const filename = `${safeTitle || "tanuloi_haladas"}${selectionSuffix}_export.xlsx`;
 
     return { success: true, base64, filename };
 }
