@@ -295,6 +295,7 @@ export default function OptionSelectorDetailPage() {
               allowMultiple: data.allowMultiple,
               deadlineAt: data.deadlineAt,
               isPublished: data.isPublished,
+              requirements: data.requirements,
               options: data.options.map((o: any) => ({
                 _id: o._id,
                 text: o.text,

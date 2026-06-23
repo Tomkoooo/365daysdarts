@@ -8,7 +8,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Check, Loader2 } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { haveSelectionsChanged } from "@/lib/option-selector-utils";
@@ -97,21 +97,27 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
         const needsResponse = !item.hasResponded;
         const canChange = item.canChange !== false;
         const isPastDeadline = item.isPastDeadline === true;
+        const canRegister = item.canRegister !== false;
+        const canWithdraw = item.canWithdraw === true;
+        const unmetMessages: string[] = item.unmetRequirementMessages || [];
+        const showPendingBadge = needsResponse && canRegister;
         const selectionChanged = haveSelectionsChanged(savedSelection, selected);
+        const isWithdrawalSelection = selected.length === 0 && item.hasResponded;
         const canSubmit =
-          item.hasResponded ? selectionChanged : selected.length > 0;
+          (canRegister && (item.hasResponded ? selectionChanged : selected.length > 0)) ||
+          (canWithdraw && isWithdrawalSelection && selectionChanged);
 
         return (
           <Card
             key={item._id}
             className={cn(
-              needsResponse && "border-amber-500/50 bg-amber-500/5"
+              showPendingBadge && "border-amber-500/50 bg-amber-500/5"
             )}
           >
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-2 min-w-0">
-                  {needsResponse && (
+                  {showPendingBadge && (
                     <AlertTriangle
                       className="h-5 w-5 shrink-0 text-amber-500 mt-0.5"
                       aria-hidden
@@ -129,9 +135,13 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                     )}
                   </div>
                 </div>
-                {needsResponse ? (
+                {showPendingBadge ? (
                   <Badge variant="outline" className="border-amber-500 text-amber-600 shrink-0">
                     Új jelentkezés szükséges
+                  </Badge>
+                ) : needsResponse && !canRegister ? (
+                  <Badge variant="outline" className="shrink-0">
+                    Feltételek nem teljesülnek
                   </Badge>
                 ) : isPastDeadline ? (
                   <Badge variant="secondary" className="shrink-0">
@@ -145,10 +155,27 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
+              {!canRegister && unmetMessages.length > 0 && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                    <Lock className="h-4 w-4 shrink-0" />
+                    Jelentkezéshez teljesítened kell:
+                  </div>
+                  <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-0.5">
+                    {unmetMessages.map((message) => (
+                      <li key={message}>{message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="grid gap-2">
                 {item.options.map((opt: any) => {
                   const isSelected = selected.includes(opt._id);
-                  const disabled = !canChange || (!isSelected && opt.isFull);
+                  const canInteract =
+                    canChange &&
+                    (canRegister || (canWithdraw && isSelected)) &&
+                    (isSelected || !opt.isFull);
+                  const disabled = !canInteract;
 
                   return (
                     <div
@@ -157,11 +184,11 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                       aria-checked={isSelected}
                       tabIndex={disabled ? -1 : 0}
                       onClick={() => {
-                        if (disabled || !canChange) return;
+                        if (disabled) return;
                         toggleSelection(item._id, opt._id, item.allowMultiple);
                       }}
                       onKeyDown={(e) => {
-                        if (disabled || !canChange) return;
+                        if (disabled) return;
                         if (e.key === " " || e.key === "Enter") {
                           e.preventDefault();
                           toggleSelection(item._id, opt._id, item.allowMultiple);
@@ -170,7 +197,7 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                       className={cn(
                         "flex items-center gap-3 p-3 rounded-md border transition-colors min-h-10",
                         isSelected && "border-primary bg-primary/5",
-                        canChange && !disabled ? "cursor-pointer" : "cursor-default",
+                        canInteract ? "cursor-pointer" : "cursor-default",
                         disabled && "opacity-50 cursor-not-allowed"
                       )}
                     >
@@ -199,7 +226,7 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                   A határidő lejárt, jelentkezés már nem lehetséges.
                 </p>
               )}
-              {canChange && (
+              {canChange && (canRegister || (canWithdraw && isWithdrawalSelection)) && (
                 <Button
                   size="sm"
                   disabled={submittingId === item._id || !canSubmit}
@@ -215,7 +242,7 @@ export function StudentOptionSelectorList({ courseId }: StudentOptionSelectorLis
                       : "Jelentkezés"}
                 </Button>
               )}
-              {item.hasResponded && canChange && (
+              {item.hasResponded && canChange && canRegister && (
                 <p className="text-xs text-muted-foreground">
                   A határidőig módosíthatod vagy visszavonhatod a választásodat.
                 </p>

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import type { OptionSelectorInput, OptionSelectorOptionInput } from "@/actions/option-selector-actions";
+import { REQUIREMENT_ADMIN_LABELS, type OptionSelectorRequirements } from "@/lib/option-selector-utils";
 
 type OptionSelectorFormProps = {
   initial?: Partial<OptionSelectorInput & { _id?: string }>;
@@ -26,6 +27,14 @@ export function OptionSelectorForm({ initial, onSubmit, onCancel }: OptionSelect
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   });
   const [isPublished, setIsPublished] = useState(initial?.isPublished ?? false);
+  const [requirements, setRequirements] = useState<OptionSelectorRequirements>(
+    initial?.requirements ?? {
+      beadandoSubmitted: false,
+      beadandoGraded: false,
+      hasFinalExamResult: false,
+      passedFinalExam: false,
+    }
+  );
   const [options, setOptions] = useState<OptionSelectorOptionInput[]>(
     initial?.options?.length
       ? initial.options.map((o) => ({
@@ -55,6 +64,10 @@ export function OptionSelectorForm({ initial, onSubmit, onCancel }: OptionSelect
     setOptions(next);
   }
 
+  function toggleRequirement(key: keyof OptionSelectorRequirements) {
+    setRequirements((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
@@ -73,6 +86,7 @@ export function OptionSelectorForm({ initial, onSubmit, onCancel }: OptionSelect
       allowMultiple,
       deadlineAt: deadlineAt || null,
       isPublished,
+      requirements,
       options: validOptions.map((o) => ({
         _id: o._id,
         text: o.text.trim(),
@@ -126,6 +140,31 @@ export function OptionSelectorForm({ initial, onSubmit, onCancel }: OptionSelect
         <Label htmlFor="allowMultiple" className="font-normal cursor-pointer">
           Több opció választható (jelölőnégyzetek)
         </Label>
+      </div>
+
+      <div className="space-y-3">
+        <Label>Jelentkezési feltételek</Label>
+        <p className="text-xs text-muted-foreground">
+          A diákok látják az opciókat, de csak a teljesített feltételek után jelentkezhetnek.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(Object.keys(REQUIREMENT_ADMIN_LABELS) as (keyof OptionSelectorRequirements)[]).map(
+            (key) => (
+              <label
+                key={key}
+                className="flex items-start gap-2 rounded-md border p-3 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={!!requirements[key]}
+                  onChange={() => toggleRequirement(key)}
+                  className="rounded mt-0.5"
+                />
+                <span className="text-sm">{REQUIREMENT_ADMIN_LABELS[key]}</span>
+              </label>
+            )
+          )}
+        </div>
       </div>
 
       <div className="space-y-3">

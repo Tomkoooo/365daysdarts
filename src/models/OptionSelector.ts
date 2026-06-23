@@ -17,6 +17,16 @@ const ResponseSchema = new Schema(
   { _id: true }
 );
 
+const RequirementsSchema = new Schema(
+  {
+    beadandoSubmitted: { type: Boolean, default: false },
+    beadandoGraded: { type: Boolean, default: false },
+    hasFinalExamResult: { type: Boolean, default: false },
+    passedFinalExam: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
 const OptionSelectorSchema = new Schema(
   {
     courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true, index: true },
@@ -26,6 +36,7 @@ const OptionSelectorSchema = new Schema(
     allowMultiple: { type: Boolean, default: false },
     options: { type: [OptionItemSchema], default: [] },
     responses: { type: [ResponseSchema], default: [] },
+    requirements: { type: RequirementsSchema, default: () => ({}) },
     deadlineAt: { type: Date },
     isPublished: { type: Boolean, default: false },
     isArchived: { type: Boolean, default: false },

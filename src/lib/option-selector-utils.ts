@@ -54,3 +54,93 @@ export function haveSelectionsChanged(saved: string[], current: string[]): boole
   const savedSet = new Set(saved);
   return current.some((id) => !savedSet.has(id));
 }
+
+export type OptionSelectorRequirements = {
+  beadandoSubmitted?: boolean;
+  beadandoGraded?: boolean;
+  hasFinalExamResult?: boolean;
+  passedFinalExam?: boolean;
+};
+
+export const REQUIREMENT_ADMIN_LABELS: Record<
+  keyof OptionSelectorRequirements,
+  string
+> = {
+  beadandoSubmitted: "Beadandó beadva",
+  beadandoGraded: "Beadandó értékelve",
+  hasFinalExamResult: "Van záróvizsga eredmény",
+  passedFinalExam: "Sikeres záróvizsga",
+};
+
+export const UNMET_REQUIREMENT_MESSAGES: Record<
+  keyof OptionSelectorRequirements,
+  string
+> = {
+  beadandoSubmitted:
+    "Még nem adtad be az összes beadandót (vagy nincs leadva helyetted).",
+  beadandoGraded: "Még nem értékelték az összes beadandódat.",
+  hasFinalExamResult: "Még nincs záróvizsga eredményed.",
+  passedFinalExam: "Még nem teljesítetted sikeresen a záróvizsgát.",
+};
+
+export type StudentCourseEligibilityContext = {
+  dolgozatCount: number;
+  allDolgozatSubmitted: boolean;
+  allDolgozatGraded: boolean;
+  hasFinalExamResult: boolean;
+  passedFinalExam: boolean;
+};
+
+function isRequirementEnabled(
+  requirements: OptionSelectorRequirements | undefined | null,
+  key: keyof OptionSelectorRequirements
+): boolean {
+  return !!requirements?.[key];
+}
+
+export function evaluateOptionSelectorRequirements(
+  requirements: OptionSelectorRequirements | undefined | null,
+  context: StudentCourseEligibilityContext
+): { eligible: boolean; unmetRequirements: (keyof OptionSelectorRequirements)[] } {
+  const unmetRequirements: (keyof OptionSelectorRequirements)[] = [];
+
+  if (isRequirementEnabled(requirements, "beadandoSubmitted")) {
+    if (context.dolgozatCount > 0 && !context.allDolgozatSubmitted) {
+      unmetRequirements.push("beadandoSubmitted");
+    }
+  }
+
+  if (isRequirementEnabled(requirements, "beadandoGraded")) {
+    if (context.dolgozatCount > 0 && !context.allDolgozatGraded) {
+      unmetRequirements.push("beadandoGraded");
+    }
+  }
+
+  if (isRequirementEnabled(requirements, "hasFinalExamResult")) {
+    if (!context.hasFinalExamResult) {
+      unmetRequirements.push("hasFinalExamResult");
+    }
+  }
+
+  if (isRequirementEnabled(requirements, "passedFinalExam")) {
+    if (!context.passedFinalExam) {
+      unmetRequirements.push("passedFinalExam");
+    }
+  }
+
+  return {
+    eligible: unmetRequirements.length === 0,
+    unmetRequirements,
+  };
+}
+
+export function normalizeRequirements(
+  requirements?: OptionSelectorRequirements | null
+): OptionSelectorRequirements {
+  return {
+    beadandoSubmitted: !!requirements?.beadandoSubmitted,
+    beadandoGraded: !!requirements?.beadandoGraded,
+    hasFinalExamResult: !!requirements?.hasFinalExamResult,
+    passedFinalExam: !!requirements?.passedFinalExam,
+  };
+}

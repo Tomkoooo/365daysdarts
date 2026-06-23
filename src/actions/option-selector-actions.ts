@@ -8,11 +8,17 @@ import { getAuthSession } from "@/lib/session";
 import {
   canChangeResponse,
   countResponsesForOption,
+  evaluateOptionSelectorRequirements,
   getStudentSelectedOptionIds,
   hasStudentResponded,
   isOptionFullForStudent,
   isPastDeadline,
+  normalizeRequirements,
+  type OptionSelectorRequirements,
+  type StudentCourseEligibilityContext,
+  UNMET_REQUIREMENT_MESSAGES,
 } from "@/lib/option-selector-utils";
+import { getSubmissionStatus } from "@/lib/dolgozat-utils";
 import mongoose from "mongoose";
 import * as XLSX from "xlsx";
 import { notifyPublishedOptionSelector } from "@/lib/email-notifications";
@@ -30,6 +36,7 @@ export type OptionSelectorInput = {
   options: OptionSelectorOptionInput[];
   deadlineAt?: string | null;
   isPublished?: boolean;
+  requirements?: OptionSelectorRequirements;
 };
 
 async function ensureLecturerCanAccessCourse(
@@ -78,10 +85,81 @@ type NormalizedSelector = {
   allowMultiple: boolean;
   options: { _id: string; text: string; limit: number }[];
   responses: NormalizedResponse[];
+  requirements: OptionSelectorRequirements;
   deadlineAt?: string;
   isPublished: boolean;
   isArchived: boolean;
 };
+
+async function buildStudentCourseEligibilityContext(
+  courseId: string,
+  studentId: string
+): Promise<StudentCourseEligibilityContext> {
+  const Dolgozat = (await import("@/models/Dolgozat")).default;
+  const DolgozatSubmission = (await import("@/models/DolgozatSubmission")).default;
+  const ExamResult = (await import("@/models/ExamResult")).default;
+
+  const [course, dolgozatok, submissions, finalExams] = await Promise.all([
+    Course.findById(courseId).select("finalExamSettings").lean(),
+    Dolgozat.find({ courseId, isPublished: true, isArchived: false }).lean(),
+    DolgozatSubmission.find({ courseId, userId: studentId }).lean(),
+    ExamResult.find({
+      userId: studentId,
+      courseId,
+      type: "final",
+      completedAt: { $ne: null },
+    })
+      .sort({ completedAt: -1 })
+      .lean(),
+  ]);
+
+  const submissionByDolgozat = new Map(
+    (submissions as any[]).map((sub) => [sub.dolgozatId.toString(), sub])
+  );
+
+  let allDolgozatSubmitted = true;
+  let allDolgozatGraded = true;
+  for (const dolgozat of dolgozatok as any[]) {
+    const submission = submissionByDolgozat.get(dolgozat._id.toString()) || null;
+    const status = getSubmissionStatus(submission);
+    if (!submission?.submittedAt) {
+      allDolgozatSubmitted = false;
+    }
+    if (status !== "graded") {
+      allDolgozatGraded = false;
+    }
+  }
+
+  const passingScore = (course as any)?.finalExamSettings?.passingScore || 75;
+  const latestFinal = (finalExams as any[])[0] || null;
+
+  return {
+    dolgozatCount: (dolgozatok as any[]).length,
+    allDolgozatSubmitted,
+    allDolgozatGraded,
+    hasFinalExamResult: finalExams.length > 0,
+    passedFinalExam: latestFinal ? latestFinal.score >= passingScore : false,
+  };
+}
+
+function attachEligibilityToSelector(
+  normalized: NormalizedSelector,
+  context: StudentCourseEligibilityContext,
+  hasResponded: boolean
+) {
+  const evaluation = evaluateOptionSelectorRequirements(
+    normalized.requirements,
+    context
+  );
+  return {
+    ...evaluation,
+    canRegister: evaluation.eligible,
+    canWithdraw: hasResponded,
+    unmetRequirementMessages: evaluation.unmetRequirements.map(
+      (key) => UNMET_REQUIREMENT_MESSAGES[key]
+    ),
+  };
+}
 
 function normalizeSelector(doc: any): NormalizedSelector {
   const options = (doc.options || []).map((o: any) => ({
@@ -102,6 +180,7 @@ function normalizeSelector(doc: any): NormalizedSelector {
     authorId: doc.authorId.toString(),
     options,
     responses,
+    requirements: normalizeRequirements(doc.requirements),
   };
 }
 
@@ -181,6 +260,15 @@ export async function getOptionSelectorById(id: string) {
     normalized.responses as any,
     session.user.id
   );
+  const eligibilityContext = await buildStudentCourseEligibilityContext(
+    courseId,
+    session.user.id
+  );
+  const eligibility = attachEligibilityToSelector(
+    normalized,
+    eligibilityContext,
+    myOptionIds.length > 0
+  );
   const optionsWithAvailability = normalized.options.map((o) => {
     const count = countResponsesForOption(normalized.responses as any, o._id);
     const limit = o.limit ?? 0;
@@ -201,6 +289,7 @@ export async function getOptionSelectorById(id: string) {
     hasResponded: myOptionIds.length > 0,
     canChange: canChangeResponse(normalized),
     isPastDeadline: isPastDeadline(normalized.deadlineAt),
+    ...eligibility,
   };
 }
 
@@ -229,6 +318,7 @@ export async function createOptionSelector(courseId: string, input: OptionSelect
     })),
     deadlineAt: input.deadlineAt ? new Date(input.deadlineAt) : undefined,
     isPublished: input.isPublished ?? false,
+    requirements: normalizeRequirements(input.requirements),
   });
 
   if (doc.isPublished) {
@@ -284,6 +374,7 @@ export async function updateOptionSelector(id: string, input: OptionSelectorInpu
   existing.options = newOptions as any;
   existing.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : undefined;
   existing.isPublished = input.isPublished ?? existing.isPublished;
+  existing.requirements = normalizeRequirements(input.requirements) as any;
 
   const keptOptionIds = new Set(
     existing.options.map((o: { _id: { toString(): string } }) => o._id.toString())
@@ -341,10 +432,17 @@ export async function listPublishedOptionSelectorsForStudent(courseId: string) {
     .lean();
 
   const userId = session!.user!.id;
+  const eligibilityContext = await buildStudentCourseEligibilityContext(courseId, userId);
 
   return selectors.map((s: any) => {
     const normalized = normalizeSelector(s);
     const myOptionIds = getStudentSelectedOptionIds(normalized.responses as any, userId);
+    const hasResponded = myOptionIds.length > 0;
+    const eligibility = attachEligibilityToSelector(
+      normalized,
+      eligibilityContext,
+      hasResponded
+    );
     const optionsWithAvailability = normalized.options.map((o) => {
       const count = countResponsesForOption(normalized.responses as any, o._id);
       const limit = o.limit ?? 0;
@@ -362,10 +460,11 @@ export async function listPublishedOptionSelectorsForStudent(courseId: string) {
       ...normalized,
       options: optionsWithAvailability,
       myOptionIds,
-      hasResponded: myOptionIds.length > 0,
-      needsResponse: myOptionIds.length === 0,
+      hasResponded,
+      needsResponse: !hasResponded,
       canChange,
       isPastDeadline: isPastDeadline(normalized.deadlineAt),
+      ...eligibility,
     };
   });
 }
@@ -401,6 +500,22 @@ export async function submitStudentResponse(
 
   if (!canChangeResponse(selector)) {
     return { success: false, error: "A határidő lejárt, módosítás nem lehetséges" };
+  }
+
+  const normalized = normalizeSelector(selector.toObject());
+  const eligibilityContext = await buildStudentCourseEligibilityContext(courseId, studentId);
+  const eligibility = attachEligibilityToSelector(
+    normalized,
+    eligibilityContext,
+    hadResponses
+  );
+
+  const isWithdrawal = optionIds.length === 0 && hadResponses;
+  if (!isWithdrawal && optionIds.length > 0 && !eligibility.canRegister) {
+    const message =
+      eligibility.unmetRequirementMessages[0] ||
+      "Nem teljesíted a jelentkezés feltételeit.";
+    return { success: false, error: message };
   }
 
   const validOptionIds = new Set(
@@ -587,13 +702,15 @@ export async function getStudentOptionSelectorPendingSummary(courseId: string) {
   }).lean();
 
   const userId = session.user.id;
+  const eligibilityContext = await buildStudentCourseEligibilityContext(courseId, userId);
   const pendingIds: string[] = [];
 
   for (const s of selectors as any[]) {
     const normalized = normalizeSelector(s);
-    if (!hasStudentResponded(normalized.responses as any, userId)) {
-      pendingIds.push(normalized._id);
-    }
+    if (hasStudentResponded(normalized.responses as any, userId)) continue;
+    const eligibility = attachEligibilityToSelector(normalized, eligibilityContext, false);
+    if (!eligibility.canRegister) continue;
+    pendingIds.push(normalized._id);
   }
 
   return { pendingCount: pendingIds.length, pendingIds };
@@ -660,12 +777,26 @@ export async function getCourseActionWarningCounts(courseIds: string[]) {
     }
   }
 
+  const eligibilityByCourse: Record<string, StudentCourseEligibilityContext> = {};
+  await Promise.all(
+    accessibleIds.map(async (courseId) => {
+      eligibilityByCourse[courseId] = await buildStudentCourseEligibilityContext(
+        courseId,
+        userId
+      );
+    })
+  );
+
   for (const s of selectors as any[]) {
     const cid = s.courseId.toString();
     const normalized = normalizeSelector(s);
-    if (!hasStudentResponded(normalized.responses as any, userId)) {
-      result[cid].optionWarningCount += 1;
-    }
+    if (hasStudentResponded(normalized.responses as any, userId)) continue;
+    const eligibility = evaluateOptionSelectorRequirements(
+      normalized.requirements,
+      eligibilityByCourse[cid]
+    );
+    if (!eligibility.eligible) continue;
+    result[cid].optionWarningCount += 1;
   }
 
   return result;
